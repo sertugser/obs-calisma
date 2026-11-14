@@ -1,0 +1,5 @@
+CLAUDE.md export-ignore
+.claude/ export-ignore
+.claude/** export-ignore
+docs/history/claude-md-gunluk.md export-ignore
+.gitattributes export-ignore
