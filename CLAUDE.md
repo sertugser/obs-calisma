@@ -42,8 +42,8 @@ start-project.bat                                             # hepsini sırayla
 - "Sil" ya da "kaldır" içeren her değişiklik PR'da kullanım aramasının çıktısını gösterir.
 
 Bugünkü durum (bilinen borç; örnek alınmaz, yeni kod yukarıdaki kurallara uyar):
-- `SIS.API/Controllers/` altındaki 74 controller'ın 52'si `AppDbContext`'i doğrudan kullanıyor.
-- Not hesabı `GradeController`'da (ağırlıklı ortalama controller içinde hesaplanıyor).
+- Controller'ların çoğu `AppDbContext`'e doğrudan bağlı (bugün 52/74; sayım: `git grep -l AppDbContext -- SIS.API/Controllers | wc -l` ve `git ls-files SIS.API/Controllers | wc -l`).
+- Ağırlıklı ortalama API katmanında duruyor: `GradeController.cs` (3064 satır; `wc -l`) içinde `ComputeStudentWeightedScore` 2652-2709 ve satır içi kopyası 253-269 (konum: `git grep -n -i weighted -- SIS.API/Controllers/GradeController.cs`).
 - İş kuralları `SIS.Infrastructure/Services/` altında da duruyor (örn. `SeatLedger`,
   `PrerequisiteEvaluator`). `PrerequisiteEvaluator` Infrastructure'da `internal static` bir sınıf;
   Domain'de olmalı.
