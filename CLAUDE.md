@@ -98,6 +98,8 @@ Paket açıkça bunlarla ilgili değilse dokunulmaz:
 - Dosyalar `git add .` ile değil, adıyla eklenir.
 - Commit öncesi lefthook, staged değişiklikleri Betterleaks ile tarar; bulgu commit'i reddeder.
 - Bulgu çıkarsa kancayı atlatma (--no-verify, -n, LEFTHOOK=0); dur ve sor. Değeri commit'e, PR'a, sohbete yazma.
+- CI'daki Forbidden Words kontrolü (`scripts/yasakli-kelime.sh`) kurum, rakip ürün ve yapay zekâ adlarını içerikte ve dosya adında tarar; yeni eşleşme kontrolü kırar.
+- `ci/yasakli-kelime-bilinen.txt` ve izinli export-ignore listesi yalnız küçülür; satır eklemek ya da bir sayıyı artırmak gerekirse dur ve sor.
 
 ## 8. Yapay zekâ ibaresi yasağı
 Commit mesajlarında, PR'larda, kodda ve dokümanlarda yapay zekâyla yapıldığına dair hiçbir ibare

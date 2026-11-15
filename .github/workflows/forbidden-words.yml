@@ -1,0 +1,21 @@
+name: Forbidden Words
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  forbidden-words:
+    name: Forbidden Words
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Yasaklı kelime kontrolü
+        run: bash scripts/yasakli-kelime.sh

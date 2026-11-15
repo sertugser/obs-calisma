@@ -10,4 +10,4 @@ pre-commit:
       run: >-
         set -o pipefail;
         command -v betterleaks >/dev/null 2>&1 || { echo 'HATA: betterleaks PATH icinde bulunamadi; commit reddedildi.' >&2; exit 1; };
-        git diff --staged --no-ext-diff --no-color -U0 | sed -n '/^+/p' | betterleaks stdin --redact -v --no-banner --no-color -c .gitleaks.toml
+        git diff --staged --no-ext-diff --no-textconv --no-color -U0 | sed -n '/^+/p' | betterleaks stdin --redact -v --no-banner --no-color -c .gitleaks.toml
