@@ -63,7 +63,7 @@ public class ScheduleExcelController : ControllerBase
     public async Task<ActionResult<ImportPreviewDto>> ImportPreview(
         [FromQuery] int termId,
         [FromQuery] int facultyId,
-        [FromForm] IFormFile file,
+        IFormFile file,
         CancellationToken ct = default)
     {
         if (!TryGetUserId(out var userId))
