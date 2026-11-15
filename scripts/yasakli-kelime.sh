@@ -66,9 +66,8 @@ while IFS=$'\t' read -r ad desen; do
   (cd "$arsiv" && grep -rIcP -e "$desen" .) > "$gecici/sayim" || rc=$?
   if (( rc > 1 )); then echo "HATA: '$ad' deseni çalıştırılamadı" >&2; exit 2; fi
   sed 's|^\./||' "$gecici/sayim" |
-    awk -v d="$ad" '{ n = $0; sub(/^.*:/, "", n); f = $0; sub(/:[0-9]+$/, "", f)
-                      if (n + 0 > 0) print f "\t" d "\t" n }' |
-    { grep -Ev "$haric" || true; } >> "$gecici/simdi"
+    HARIC="$haric" awk -v d="$ad" '{ n = $0; sub(/^.*:/, "", n); f = $0; sub(/:[0-9]+$/, "", f)
+                      if (n + 0 > 0 && f !~ ENVIRON["HARIC"]) print f "\t" d "\t" n }' >> "$gecici/simdi"
   rc=0
   grep -P -e "$desen" "$gecici/yollar" > "$gecici/yol" || rc=$?
   if (( rc > 1 )); then echo "HATA: '$ad' deseni yollara uygulanamadı" >&2; exit 2; fi
