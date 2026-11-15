@@ -96,6 +96,8 @@ Paket açıkça bunlarla ilgili değilse dokunulmaz:
 - PR'da şu dört soru cevaplanır: Hangi katmana dokundu? Mevcut bir kuralı kopyaladı mı? Testi
   nerede? Yetki etkisi var mı?
 - Dosyalar `git add .` ile değil, adıyla eklenir.
+- Commit öncesi lefthook, staged değişiklikleri Betterleaks ile tarar; bulgu commit'i reddeder.
+- Bulgu çıkarsa kancayı atlatma (--no-verify, -n, LEFTHOOK=0); dur ve sor. Değeri commit'e, PR'a, sohbete yazma.
 
 ## 8. Yapay zekâ ibaresi yasağı
 Commit mesajlarında, PR'larda, kodda ve dokümanlarda yapay zekâyla yapıldığına dair hiçbir ibare

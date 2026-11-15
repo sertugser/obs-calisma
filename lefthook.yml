@@ -1,0 +1,13 @@
+# Commit öncesi gizli bilgi taraması: staged değişikliklerin eklenen satırları
+# Betterleaks ile .gitleaks.toml kurallarıyla taranır; bulgu varsa commit reddedilir.
+# `betterleaks git --pre-commit --staged` Git for Windows 2.56'da çalışmıyor
+# (GIT_CONFIG_GLOBAL=NUL hatası); bu yüzden staged diff stdin üzerinden veriliyor.
+assert_lefthook_installed: true
+
+pre-commit:
+  jobs:
+    - name: betterleaks
+      run: >-
+        set -o pipefail;
+        command -v betterleaks >/dev/null 2>&1 || { echo 'HATA: betterleaks PATH icinde bulunamadi; commit reddedildi.' >&2; exit 1; };
+        git diff --staged --no-ext-diff --no-color -U0 | sed -n '/^+/p' | betterleaks stdin --redact -v --no-banner --no-color -c .gitleaks.toml
