@@ -5,6 +5,7 @@ on:
     branches: [main, master]
   pull_request:
     branches: [main, master]
+  workflow_dispatch:
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -14,21 +15,7 @@ jobs:
   backend:
     name: Backend Build & Test
     runs-on: ubuntu-latest
-
-    services:
-      postgres:
-        image: postgres:16
-        env:
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: 12345
-          POSTGRES_DB: StudentInfoSystem
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
+    timeout-minutes: 15
 
     steps:
       - uses: actions/checkout@v4
@@ -53,10 +40,40 @@ jobs:
         run: dotnet build --no-restore --configuration Release --warnaserror
 
       - name: Run tests
+        run: dotnet test --no-build --configuration Release --verbosity normal
+
+  backend-coverage:
+    name: Backend Coverage
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+          dotnet-quality: 'preview'
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj') }}
+          restore-keys: nuget-${{ runner.os }}-
+
+      - name: Restore dependencies
+        run: dotnet restore
+
+      - name: Build
+        run: dotnet build --no-restore --configuration Release --warnaserror
+
+      - name: Run tests with coverage
         run: dotnet test --no-build --configuration Release --verbosity normal --collect:"XPlat Code Coverage"
 
       - name: Upload coverage
-        if: github.event_name == 'pull_request'
         uses: actions/upload-artifact@v4
         with:
           name: backend-coverage
