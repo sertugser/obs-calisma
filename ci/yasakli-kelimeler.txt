@@ -1,0 +1,18 @@
+# Yasaklı kelime desenleri: scripts/yasakli-kelime.sh okur.
+# Biçim: ad<TAB>desen (grep -P; LC_ALL=C.UTF-8). Desen hem dosya içeriğine hem dosya yoluna uygulanır.
+# Türkçe harfler sınıfla yazılır: i -> [iıİI], ü -> [üuÜU]; ASCII için (?i) yeterli.
+kurum-ankara-bilim	(?i)ankara[\s_.\-]*b[iıİI]l[iıİI]m
+kurum-bilim-universite	(?i)b[iıİI]l[iıİI]m[\s_.\-]*([üuÜU]n[iıİI]vers[iıİI]te|un[iıİI]vers[iıİI]ty)
+kurum-kisaltma	(?<![\p{L}\p{N}_\-])AB[ÜU](?![\p{L}\p{N}_\-])
+rakip-proliz	(?i)prol[iıİI]z
+rakip-diger	(?i)(?<![a-z0-9])(ellucian|ub[yiıİI]s|peoplesoft|jenzabar|moodle|oracle[\s_\-]*campus|workday[\s_\-]*student)(?![a-z0-9])
+yapay-zeka	(?i)(?<![a-z0-9])(claude|anthropic|chatgpt|openai|copilot|gemini)|co-authored-by|generated[\s_\-]+with[\s_\-]+(claude|ai)(?![a-z0-9])
+
+# İzinli export-ignore kuralları. Biçim: kaynak<TAB>yol-deseni.
+# Bu listede olmayan bir export-ignore kuralı kontrolü kırar (taramadan dosya saklanamaz).
+[izinli-export-ignore]
+.gitattributes	CLAUDE.md
+.gitattributes	.claude/
+.gitattributes	.claude/**
+.gitattributes	docs/history/claude-md-gunluk.md
+.gitattributes	.gitattributes
