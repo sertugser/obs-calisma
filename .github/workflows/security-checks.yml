@@ -51,7 +51,13 @@ jobs:
         run: dotnet restore StudentInformationSystem.slnx
 
       - name: .NET vulnerable package audit
-        run: dotnet list StudentInformationSystem.slnx package --vulnerable --include-transitive
+        run: |
+          dotnet list StudentInformationSystem.slnx package --vulnerable --include-transitive --format json > "$RUNNER_TEMP/dotnet-vulnerable.json"
+          cat "$RUNNER_TEMP/dotnet-vulnerable.json"
+          if grep -Eq '"severity":[[:space:]]*"(High|Critical)"' "$RUNNER_TEMP/dotnet-vulnerable.json"; then
+            echo "::error::High or Critical vulnerable NuGet package found (see JSON above)"
+            exit 1
+          fi
 
       - name: Setup Node
         uses: actions/setup-node@v4

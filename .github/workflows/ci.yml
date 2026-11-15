@@ -121,7 +121,7 @@ jobs:
 
       - name: NPM audit
         working-directory: SIS.Web
-        run: npm audit --audit-level=high || true
+        run: npm audit --audit-level=high
 
       - name: Check for secrets in code
         run: |
