@@ -83,13 +83,13 @@ Paket açıkça bunlarla ilgili değilse dokunulmaz:
   docker run --rm -v "${PWD}:/src:ro" mcr.microsoft.com/dotnet/sdk:10.0 sh -c "mkdir /work && tar -C /src --exclude=node_modules --exclude=bin --exclude=obj --exclude=.git -cf - . | tar -C /work -xf - && cd /work && dotnet test"
   ```
   Klasör salt okunur bağlanır ve konteynere kopyalanır; böylece Windows'taki `bin/` ve `obj/` bozulmaz.
-- Test taban çizgisi: 1.483 test; 1.481 geçti, 0 kaldı, 2 atlandı. Her değişiklik bununla karşılaştırılır.
+- Test taban çizgisi: 1.485 test; 1.483 geçti, 0 kaldı, 2 atlandı. Her değişiklik bununla karşılaştırılır.
 - nuget-license da aynı nedenle Docker içinde çalıştırılır.
 - Frontend (`SIS.Web/` içinde): `npm ci`, `npm run lint`, `npx tsc --noEmit`, `npm run build`.
 
 ## 7. Git ve PR
 - `origin`: sertugser/obs-calisma (private). `main` korumalı: doğrudan push yok, PR zorunlu;
-  zorunlu kontroller: Backend Build & Test, Frontend Build & Lint, Security Audit.
+  zorunlu kontroller: Backend Build & Test, Frontend Build & Lint, Security Audit, Dependency Audit.
 - `eski` remote'u (sertugser/abu-sis) arşivlenmiştir; ona push yapılmaz.
 - PR açıklaması 3–5 satırlık bir nottur: hangi iş paketi, ne değişti, nasıl doğrulandı (komut ve
   çıktı), ne doğrulanamadı.
