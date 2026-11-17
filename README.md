@@ -19,7 +19,7 @@ Aşağıdakiler **kurulu ve çalışır** olmalı:
 |------|----------|
 | .NET SDK | 10.0+ |
 | Node.js | 18+ |
-| PostgreSQL | 15+ (servis çalışır durumda) |
+| PostgreSQL | 18 (servis çalışır durumda) |
 
 ## Kurulum
 
