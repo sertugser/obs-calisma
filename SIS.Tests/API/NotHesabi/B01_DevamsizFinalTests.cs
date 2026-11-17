@@ -54,5 +54,8 @@ public class B01_DevamsizFinalTests
         var dto = Assert.IsType<StudentGradeStatisticsDto>(ekran.Value);
         Assert.Null(dto.StudentWeightedAverage);
         Assert.Equal(70m, dto.Components.Single(c => c.ComponentId == vize.Id).StudentScore);
+        // Final bileşeni öğrenciye görünüyor; boş ortalama görünürlükten değil eksik puandan geliyor.
+        Assert.Null(dto.Components.Single(c => c.ComponentId == final.Id).StudentScore);
+        Assert.False(dto.HasAllComponentScores);
     }
 }

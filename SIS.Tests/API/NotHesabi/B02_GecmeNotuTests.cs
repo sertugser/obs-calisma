@@ -3,6 +3,7 @@ using SIS.API.Controllers;
 using SIS.Application.Common.Services;
 using SIS.Domain.Entities;
 using SIS.Domain.Enums;
+using SIS.Infrastructure.Services;
 
 namespace SIS.Tests.API.NotHesabi;
 
@@ -52,6 +53,9 @@ public class B02_GecmeNotuTests
 
         Assert.IsType<OkObjectResult>(await ortam.NotController().Finalize(ortam.Sube.Id));
         Assert.Equal(GradeCode.DD, (await ortam.Db.CourseRegistrations.FindAsync(kayit.Id))!.Grade);
+        // Kurulum canlı: yönerge bu öğrenciye çözülüyor ve geçme notu 0.
+        var cozulen = await new ExamRegulationResolver(ortam.Db).ResolveForStudentsAsync([kayit.StudentId], ortam.Donem.Id, default);
+        Assert.Equal(0m, cozulen[kayit.StudentId]!.PassingGrade);
     }
 
     [Theory]
@@ -66,6 +70,10 @@ public class B02_GecmeNotuTests
         var sonuc = await YonergeController(ortam).Create(Istek(gecmeNotu, ortam.Program.Id), default);
 
         Assert.IsType(kabul ? typeof(OkObjectResult) : typeof(BadRequestObjectResult), sonuc);
+        if (kabul)
+            Assert.Equal(gecmeNotu, ortam.Db.ExamRegulations.Single().PassingGrade);
+        else
+            Assert.Equal("Geçme notu 0-100 arasında olmalıdır.", NotHesabiOrtami.Oku<string>(((BadRequestObjectResult)sonuc).Value!, "message"));
     }
 
     [Fact]
