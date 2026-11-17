@@ -100,6 +100,8 @@ Paket açıkça bunlarla ilgili değilse dokunulmaz:
 - Bulgu çıkarsa kancayı atlatma (--no-verify, -n, LEFTHOOK=0); dur ve sor. Değeri commit'e, PR'a, sohbete yazma.
 - CI'daki Forbidden Words kontrolü (`scripts/yasakli-kelime.sh`) kurum, rakip ürün ve yapay zekâ adlarını içerikte ve dosya adında tarar; yeni eşleşme kontrolü kırar.
 - `ci/yasakli-kelime-bilinen.txt` ve izinli export-ignore listesi yalnız küçülür; satır eklemek ya da bir sayıyı artırmak gerekirse dur ve sor.
+- npm denetim kapısı (`SIS.Web/` içinde): `node ../scripts/npm-audit-kapisi.mjs`. Yüksek/kritik açık kapıyı düşürür; istisna yalnız `ci/npm-audit-istisnalar.txt`'te kimlik, sürüm ve bitiş tarihiyle.
+- `ci/npm-audit-istisnalar.txt` yalnız küçülür; satır eklemek ya da bitiş tarihini uzatmak gerekirse dur ve sor.
 
 ## 8. Yapay zekâ ibaresi yasağı
 Commit mesajlarında, PR'larda, kodda ve dokümanlarda yapay zekâyla yapıldığına dair hiçbir ibare

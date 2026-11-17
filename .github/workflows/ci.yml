@@ -138,7 +138,7 @@ jobs:
 
       - name: NPM audit
         working-directory: SIS.Web
-        run: npm audit --audit-level=high
+        run: node ../scripts/npm-audit-kapisi.mjs
 
       - name: Check for secrets in code
         run: |
