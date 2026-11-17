@@ -99,12 +99,12 @@ internal sealed class NotHesabiOrtami : IDisposable
     public void PuanEkle(CourseRegistration kayit, GradeComponent bilesen, decimal? puan, ExamAttendance katilim = ExamAttendance.Present) =>
         Kaydet(new StudentGrade { CourseRegistrationId = kayit.Id, GradeComponentId = bilesen.Id, Score = puan, ExamAttendance = katilim });
 
-    public GradeController NotController()
+    public GradeController NotController(IWebModuleControlService? pencereler = null)
     {
         var gpa = new Mock<IGpaCalculationService>();
         gpa.Setup(g => g.RecalculateAndUpdateAsync(It.IsAny<int>())).ReturnsAsync(new GpaResultDto());
         return new GradeController(Db, gpa.Object, new SystemDateTimeProvider(), new ExamRegulationResolver(Db),
-            webModuleControls: new NullWebModuleControlService())
+            webModuleControls: pencereler ?? new NullWebModuleControlService())
         {
             ControllerContext = KullaniciBaglami(HocaKullanici.Id)
         };
@@ -129,4 +129,20 @@ internal sealed class NotHesabiOrtami : IDisposable
     }
 
     public void Dispose() => Db.Dispose();
+}
+
+/// <summary>Kod bazında pencere durumu döndüren saplama; listede olmayan kod kapalı sayılır.</summary>
+internal sealed class SaplamaPencereServisi(IDictionary<string, WebModuleAccessResult> durumlar) : IWebModuleControlService
+{
+    public WebModuleControlDefinition? GetDefinition(string code) => null;
+
+    public Task<IReadOnlyList<WebModuleControlSummary>> GetSummariesAsync(CancellationToken ct = default)
+        => Task.FromResult<IReadOnlyList<WebModuleControlSummary>>([]);
+
+    public Task<WebModuleAccessResult> EvaluateAsync(string code, int? termId = null, CancellationToken ct = default)
+        => Task.FromResult(durumlar.TryGetValue(code, out var durum) ? durum : Kapali(WebModuleControlModes.Closed));
+
+    public static WebModuleAccessResult Acik() => new(true, true, WebModuleControlModes.Open, "Açık", "Açık", null);
+
+    public static WebModuleAccessResult Kapali(string mod) => new(true, false, mod, "Kapalı", "Kapalı", "Pencere kapalı.");
 }
