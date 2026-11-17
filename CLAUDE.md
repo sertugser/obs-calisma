@@ -84,6 +84,9 @@ Paket açıkça bunlarla ilgili değilse dokunulmaz:
   ```
   Klasör salt okunur bağlanır ve konteynere kopyalanır; böylece Windows'taki `bin/` ve `obj/` bozulmaz.
 - Test taban çizgisi: 1.485 test; 1.483 geçti, 0 kaldı, 2 atlandı. Her değişiklik bununla karşılaştırılır.
+- Gerçek PostgreSQL testleri (`SIS.Tests.Postgres`, Testcontainers, `postgres:18.7-trixie`) yukarıdaki komuta ve taban çizgisine girmez; Docker soketiyle ayrı çalıştırılır (~7 dk, Development seed'i):
+  `docker run --rm -v "${PWD}:/src:ro" -v /var/run/docker.sock:/var/run/docker.sock -e TESTCONTAINERS_HOST_OVERRIDE=host.docker.internal -e PostgresTestleri=true mcr.microsoft.com/dotnet/sdk:10.0 sh -c "mkdir /work && tar -C /src --exclude=node_modules --exclude=bin --exclude=obj --exclude=.git -cf - . | tar -C /work -xf - && cd /work && dotnet test SIS.Tests.Postgres"`
+  CI'da `PostgreSQL Tests` iş akışı (`.github/workflows/postgres-tests.yml`) çalıştırır; zorunlu kontrol değildir.
 - nuget-license da aynı nedenle Docker içinde çalıştırılır.
 - Frontend (`SIS.Web/` içinde): `npm ci`, `npm run lint`, `npx tsc --noEmit`, `npm run build`.
 
