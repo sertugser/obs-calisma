@@ -20,7 +20,11 @@ public class B06_DevamMuafiyetiTests
         var vize = ortam.BilesenEkle("Vize", 40m, GradeComponentType.Midterm, 1);
         var final = ortam.BilesenEkle("Final", 60m, GradeComponentType.Final, 2);
         ortam.HarfOlcutuEkle();
-        var oturum = new AttendanceSession { CourseSection = ortam.Sube, Instructor = ortam.Sube.Instructor!, WeekNumber = 1, SessionDate = new DateTime(2024, 10, 7) };
+        // Haftada bir oturum (1–5. hafta); her oturumda öğrenci başına en çok bir yoklama kaydı.
+        var oturumlar = Enumerable.Range(1, 5).Select(hafta => new AttendanceSession
+        {
+            CourseSection = ortam.Sube, Instructor = ortam.Sube.Instructor!, WeekNumber = hafta, SessionDate = new DateTime(2024, 10, 7).AddDays(7 * (hafta - 1))
+        }).ToList();
         var kayitlar = new List<CourseRegistration>();
         foreach (var (no, devamsizOturum) in new[] { ("01", 5), ("02", 4) })
         {
@@ -28,7 +32,7 @@ public class B06_DevamMuafiyetiTests
             kayit.MandatoryAttendance = devamZorunlu;
             ortam.PuanEkle(kayit, vize, 80m);
             ortam.PuanEkle(kayit, final, 80m);
-            for (var i = 0; i < devamsizOturum; i++)
+            foreach (var oturum in oturumlar.Take(devamsizOturum))
                 ortam.Db.AttendanceRecords.Add(new AttendanceRecord { AttendanceSession = oturum, CourseRegistrationId = kayit.Id, StudentId = ogrenci.Id, Status = AttendanceStatus.Absent, TotalSlotCount = 3 });
             kayitlar.Add(kayit);
         }

@@ -39,7 +39,6 @@ public class B03_SinavSayisiTests
             ortam.PuanEkle(kayit, bilesen, 80m);
 
         Assert.IsType<OkObjectResult>(await controller.Finalize(ortam.Sube.Id));
-        Assert.NotNull((await ortam.Db.CourseRegistrations.FindAsync(kayit.Id))!.Grade);
         Assert.Equal(GradeCode.BB, (await ortam.Db.CourseRegistrations.FindAsync(kayit.Id))!.Grade); // 80 → BB
         Assert.True((await ortam.Db.CourseSections.FindAsync(ortam.Sube.Id))!.IsFinalized);
     }
