@@ -26,6 +26,11 @@ public class D07_AzamiSureTests
         Assert.Equal(deger, olusan.MaxStudyDurationSemesters);
         Assert.Equal(deger, (await ortam.Db.AcademicPrograms.AsNoTracking().SingleAsync(p => p.Id == olusan.Id)).MaxStudyDurationSemesters);
 
+        // Ara güncelleme: 0 satırında da son güncellemenin değeri gerçekten yazdığını ayırt eder (1 → 0).
+        await servis.UpdateProgramAsync(olusan.Id, new UpdateProgramDto(
+            "Yeni Program", olusan.Code, null, ortam.Bolum.Id, "Bachelor", "Semester", deger * 2 + 1, 240));
+        Assert.Equal(deger * 2 + 1, (await ortam.Db.AcademicPrograms.AsNoTracking().SingleAsync(p => p.Id == olusan.Id)).MaxStudyDurationSemesters);
+
         var guncel = await servis.UpdateProgramAsync(olusan.Id, new UpdateProgramDto(
             "Yeni Program", olusan.Code, null, ortam.Bolum.Id, "Bachelor", "Semester", deger * 2, 240));
         Assert.Equal(deger * 2, guncel.MaxStudyDurationSemesters);

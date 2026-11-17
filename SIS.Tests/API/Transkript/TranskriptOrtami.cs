@@ -1,10 +1,16 @@
 using Microsoft.EntityFrameworkCore;
+using Moq;
+using SIS.API.Controllers;
+using SIS.Application.CalendarGenerator.Services;
 using SIS.Application.Common.DTOs;
 using SIS.Application.Common.Services;
+using SIS.Application.CourseRegistration.Services;
+using SIS.Application.StudentCard.Services;
 using SIS.Domain.Entities;
 using SIS.Domain.Enums;
 using SIS.Infrastructure.Persistence;
 using SIS.Infrastructure.Services;
+using SIS.Tests.API.NotHesabi;
 
 namespace SIS.Tests.API.Transkript;
 
@@ -49,6 +55,15 @@ internal sealed class TranskriptOrtami : IDisposable
         });
     }
 
+    /// <summary>Kullanıma açık (aktif) dönem ekler; aktiflik tarihe değil IsActivated bayrağına bağlı.</summary>
+    public AcademicTerm AktifDonemEkle(int yil, TermType tur)
+    {
+        var donem = DonemEkle(yil, tur);
+        donem.IsActivated = true;
+        Db.SaveChanges();
+        return donem;
+    }
+
     public Course DersEkle(string kod, int akts, int kredi = 3, bool notsuz = false) =>
         Kaydet(new Course { Code = kod, Name = kod + " Dersi", Ects = akts, NationalCredit = kredi, IsNonGpa = notsuz });
 
@@ -76,6 +91,20 @@ internal sealed class TranskriptOrtami : IDisposable
     /// <summary>Üretimdeki varsayılan görünürlük servisiyle transkript.</summary>
     public async Task<StudentTranscriptDto> TranskriptAsync() =>
         (await new StudentTranscriptService(Db).GetTranscriptAsync(Ogrenci.Id))!;
+
+    /// <summary>Not ilanı verilen web modülü servisine göre görünen ortalama ve transkript servisleri.</summary>
+    public GpaCalculationService Gpa(IWebModuleControlService modul) => new(Db, new GradeVisibilityService(Db, modul));
+
+    public async Task<StudentTranscriptDto> TranskriptAsync(IWebModuleControlService modul) =>
+        (await new StudentTranscriptService(Db, new GradeVisibilityService(Db, modul)).GetTranscriptAsync(Ogrenci.Id))!;
+
+    /// <summary>Öğrenci kullanıcısıyla, gerçek transkript ve ortalama servisleriyle controller.</summary>
+    public StudentController Controller() => new(Db, Gpa(), Mock.Of<IAcademicCalendarRuleService>(),
+        new NullSystemConfigProvider(), Mock.Of<ICurriculumStatusService>(), new StudentTranscriptService(Db),
+        Mock.Of<IEctsLimitResolver>(), Mock.Of<ITranscriptScenarioService>(), new NullWebModuleControlService())
+    {
+        ControllerContext = NotHesabiOrtami.KullaniciBaglami(Ogrenci.UserId)
+    };
 
     public static StudentTranscriptCourseDto Ders(StudentTranscriptDto transkript, AcademicTerm donem, string kod) =>
         transkript.Terms.Single(t => t.TermId == donem.Id).Courses.Single(c => c.CourseCode == kod);
