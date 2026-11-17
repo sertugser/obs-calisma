@@ -72,4 +72,4 @@ jobs:
 
       - name: Node dependency audit
         working-directory: SIS.Web
-        run: npm audit --audit-level=high
+        run: node ../scripts/npm-audit-kapisi.mjs
