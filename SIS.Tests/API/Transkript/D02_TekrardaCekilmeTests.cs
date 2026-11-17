@@ -55,6 +55,23 @@ public class D02_TekrardaCekilmeTests
         Assert.Null((await ortam.Gpa().GetTermGpaHistoryAsync(ortam.Ogrenci.Id)).Terms[1].Sgpa);
     }
 
+    // Transkriptteki tekrar bilgisi: bayrak VEYA aynı zincirde birden çok kayıt. Bayraksız W'de iki satır da tekrar;
+    // karşı örnek: tek alınmış derse yalnız bayrak verilince de tekrar görünüyor.
+    [Fact]
+    public async Task D02_TekrarBilgisi_BayraktanVeyaZincirden()
+    {
+        using var ortam = new TranskriptOrtami();
+        var (prg, ilk, ikinci) = Kur(ortam);
+        ortam.KayitEkle(prg, ikinci, GradeCode.W, RegistrationStatus.Withdrawn);
+        ortam.KayitEkle(ortam.DersEkle("FIZ101", 5), ikinci, GradeCode.BB, ayarla: k => k.IsRepeated = true);
+
+        var transkript = await ortam.TranskriptAsync();
+        Assert.True(TranskriptOrtami.Ders(transkript, ilk, "PRG101").IsRepeated);
+        Assert.True(TranskriptOrtami.Ders(transkript, ikinci, "PRG101").IsRepeated);
+        Assert.True(TranskriptOrtami.Ders(transkript, ikinci, "FIZ101").IsRepeated);
+        Assert.False(TranskriptOrtami.Ders(transkript, ilk, "MAT101").IsRepeated);
+    }
+
     private static (Course Prg, AcademicTerm Ilk, AcademicTerm Ikinci) Kur(TranskriptOrtami ortam)
     {
         var ilk = ortam.DonemEkle(2023, TermType.Fall);
