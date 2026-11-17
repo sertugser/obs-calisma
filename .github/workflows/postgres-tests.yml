@@ -1,0 +1,45 @@
+name: PostgreSQL Tests
+
+# Gerçek PostgreSQL 18 (Testcontainers) üzerinde koşan testler. Zorunlu kontrollerden ayrıdır;
+# SIS.Tests.Postgres çözüm genelindeki dotnet test'e girmez, burada PostgresTestleri=true ile çalışır.
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: postgres-tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  postgres-tests:
+    name: PostgreSQL Tests
+    runs-on: ubuntu-latest
+    # Development seed'i gerçek veritabanında ~6 dk sürüyor.
+    timeout-minutes: 25
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+          dotnet-quality: 'preview'
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj') }}
+          restore-keys: nuget-${{ runner.os }}-
+
+      - name: Run PostgreSQL tests
+        env:
+          PostgresTestleri: 'true'
+        run: dotnet test SIS.Tests.Postgres/SIS.Tests.Postgres.csproj --configuration Release --verbosity normal
