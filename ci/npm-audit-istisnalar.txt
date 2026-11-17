@@ -1,0 +1,5 @@
+# npm denetim kapısı istisnaları (okuyan: scripts/npm-audit-kapisi.mjs)
+# Biçim: GHSA | paket | bilinen en son sürüm | bitiş tarihi (YYYY-AA-GG) | gerekçe
+# "#" ile başlayan satır yorumdur. Liste yalnız küçülür; satır eklemek insan onayı ister.
+# Kapı yine düşer: süre dolunca, paketin yeni sürümü çıkınca, listede olmayan yüksek/kritik açıkta.
+GHSA-fc5q-39xc-vjpf | picomatch | 4.0.7 | 2026-12-17 | Yamalı sürüm yok (4.0.7 en son); yalnız geliştirme bağımlılığı (vite, tinyglobby, fdir), üretim paketine girmiyor
