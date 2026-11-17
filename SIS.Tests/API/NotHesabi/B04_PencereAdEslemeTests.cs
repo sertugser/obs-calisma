@@ -29,7 +29,7 @@ public class B04_PencereAdEslemeTests
     {
         var (sonuc, kayitliPuan) = await PuanGonder("Proje");
 
-        Assert.IsType<BadRequestObjectResult>(sonuc);
+        Assert.Equal(GenelPencereMesaji, RetMesaji(sonuc));
         Assert.Null(kayitliPuan);
     }
 
@@ -38,14 +38,22 @@ public class B04_PencereAdEslemeTests
     [Trait("Durum", "BilinenHata")]
     [InlineData("Vize", true)]
     [InlineData("VIZE", true)]
-    [InlineData("VİZE", false)]
+    [InlineData("V\u0130ZE", false)]
     public async Task B04_VizeBuyukHarf_NoktaliIEslesmiyor(string bilesenAdi, bool kabul)
     {
         var (sonuc, kayitliPuan) = await PuanGonder(bilesenAdi);
 
         Assert.IsType(kabul ? typeof(OkObjectResult) : typeof(BadRequestObjectResult), sonuc);
         Assert.Equal(kabul ? 85m : (decimal?)null, kayitliPuan);
+        if (!kabul)
+            Assert.Equal(GenelPencereMesaji, RetMesaji(sonuc));
     }
+
+    // Saplama: genel ve final penceresi farklı mesajla kapalı; ret mesajı reddin hangi pencereden geldiğini gösterir.
+    private const string GenelPencereMesaji = "Genel pencere kapalı.";
+
+    private static string RetMesaji(IActionResult sonuc) =>
+        NotHesabiOrtami.Oku<string>(Assert.IsType<BadRequestObjectResult>(sonuc).Value!, "error");
 
     private static async Task<(IActionResult Sonuc, decimal? KayitliPuan)> PuanGonder(string bilesenAdi)
     {
@@ -54,9 +62,9 @@ public class B04_PencereAdEslemeTests
         var (ogrenci, _, kayit) = ortam.OgrenciEkle("01");
         var pencereler = new SaplamaPencereServisi(new Dictionary<string, WebModuleAccessResult>
         {
-            ["instructor-grade-entry"] = SaplamaPencereServisi.Kapali(WebModuleControlModes.GradeEntryPeriod),
+            ["instructor-grade-entry"] = new(true, false, WebModuleControlModes.GradeEntryPeriod, "Kapalı", "Kapalı", GenelPencereMesaji),
             ["midterm-grade-entry"] = SaplamaPencereServisi.Acik(),
-            ["final-grade-entry"] = SaplamaPencereServisi.Kapali(WebModuleControlModes.Closed)
+            ["final-grade-entry"] = new(true, false, WebModuleControlModes.Closed, "Kapalı", "Kapalı", "Final penceresi kapalı.")
         });
 
         var sonuc = await ortam.NotController(pencereler).SubmitGrades(ortam.Sube.Id, new GradeController.GradeSubmitDto
