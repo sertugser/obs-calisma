@@ -101,6 +101,23 @@ internal sealed class DersKaydiOrtami : IDisposable
     private CourseSection SubeEkle(Course ders, AcademicTerm donem) =>
         Kaydet(new CourseSection { Course = ders, Term = donem, Instructor = _hoca, SectionNumber = 1, Capacity = 30, Status = CourseSectionStatus.Active });
 
+    /// <summary>Etkin dönemde, şubesinde <paramref name="kayitli"/> öğrenci görünen yeni bir şubeye Active kayıt ekler.</summary>
+    public CourseRegistration AktifKayitEkle(Course ders, int kayitli = 1)
+    {
+        var sube = Sube(ders);
+        sube.EnrolledCount = kayitli;
+        return Kaydet(new CourseRegistration
+        {
+            Student = Ogrenci, CourseSection = sube, Status = RegistrationStatus.Active, CreatedAt = EtkinDonem.TermStart
+        });
+    }
+
+    public void ProgramDuzeyiAyarla(DegreeLevel duzey)
+    {
+        Db.Set<AcademicProgram>().Single().DegreeLevel = duzey;
+        Db.SaveChanges();
+    }
+
     public GpaCalculationService Gpa() => new(Db, new GradeVisibilityService(Db, new NullWebModuleControlService()));
 
     public RegistrationValidationService Dogrulama() => new(Db, Saat);
