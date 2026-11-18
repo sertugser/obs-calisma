@@ -138,11 +138,11 @@ internal sealed class DersKaydiVeriKurucu(PostgresFixture fixture)
     /// Dolgu sayısı ve satır genişliği, ölçülen şubelerin sayfadaki konumunu belirler; araya giren güncellemenin satırı
     /// aynı sayfada kalmalıdır (sayfa dolarsa güncelleme başka sayfaya gider). Bunu C04 testi açıkça denetler.
     /// </summary>
-    public async Task DolguSubeleriEkleAsync(int adet = 1000)
+    public async Task DolguSubeleriEkleAsync()
     {
         var dersId = await DersEkleAsync("DLG900");
         await using var db = fixture.YeniContext();
-        db.CourseSections.AddRange(Enumerable.Range(1, adet).Select(no => new CourseSection
+        db.CourseSections.AddRange(Enumerable.Range(1, 1000).Select(no => new CourseSection
         {
             CourseId = dersId, TermId = _donemId, SectionNumber = no, Capacity = 1, Status = CourseSectionStatus.Active, CreatedAt = Simdi
         }));

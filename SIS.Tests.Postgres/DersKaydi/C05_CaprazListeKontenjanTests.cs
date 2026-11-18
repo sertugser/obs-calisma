@@ -53,7 +53,7 @@ public sealed class C05_CaprazListeKontenjanTests(PostgresFixture fixture) : IAs
         Assert.Equal(new[] { (o[1], Bekliyor), (o[3], Bekliyor) }.OrderBy(k => k.Item1), await veri.KayitlarAsync(b));
     }
 
-    // Olası hata adayı: iptal edilmiş bir grup üyesinin mevcudu bugün grup toplamına girer. Dönem iptali şubeleri iptal eder ama
+    // Bugünkü davranış: iptal edilmiş bir grup üyesinin mevcudu bugün grup toplamına girer. Dönem iptali şubeleri iptal eder ama
     // mevcudu sıfırlamaz; iptal geri alınınca şubeler kendiliğinden açılmaz, biri yeniden açılınca iptal kalan üye toplamda sayılır.
     [Fact]
     public async Task C05_GrupUyesiIptalEdilmisVeMevcutluOlunca_ToplamaGirer_GonderimReddedilir()
@@ -91,14 +91,14 @@ public sealed class C05_CaprazListeKontenjanTests(PostgresFixture fixture) : IAs
         Assert.Equal(new[] { (o[0], Bekliyor), (o[2], Bekliyor) }.OrderBy(k => k.Item1), await veri.KayitlarAsync(a));
     }
 
-    // A ve B aynı grupta; A'nın kapasitesi 2, B'nin 3; ö1 A'ya kayıtlı. Gruba ait olmayan dolu şubeler: başka grup, grupsuz,
-    // başka dönem (kendi grup kimliğiyle).
+    // A ve B aynı grupta (kimlik 2); A'nın kapasitesi 2, B'nin 4; ö1 A'ya kayıtlı. Gruba ait olmayan dolu şubeler: daha küçük kimlikli
+    // grup (1), grupsuz, başka dönemde daha büyük kimlikli grup (3).
     private async Task<(DersKaydiVeriKurucu Veri, int A, int B, int[] Ogrenciler)> GrupKurAsync()
     {
         var veri = await DersKaydiVeriKurucu.KurAsync(fixture);
-        var a = await veri.SubeEkleAsync(await veri.DersEkleAsync("DKY101"), kapasite: 2, grup: 1);
-        var b = await veri.SubeEkleAsync(await veri.DersEkleAsync("DKY102"), kapasite: 3, grup: 1);
-        await veri.MevcutVerAsync(await veri.SubeEkleAsync(await veri.DersEkleAsync("DKY103"), kapasite: 5, grup: 2), 5);
+        var a = await veri.SubeEkleAsync(await veri.DersEkleAsync("DKY101"), kapasite: 2, grup: 2);
+        var b = await veri.SubeEkleAsync(await veri.DersEkleAsync("DKY102"), kapasite: 4, grup: 2);
+        await veri.MevcutVerAsync(await veri.SubeEkleAsync(await veri.DersEkleAsync("DKY103"), kapasite: 5, grup: 1), 5);
         await veri.MevcutVerAsync(await veri.SubeEkleAsync(await veri.DersEkleAsync("DKY104"), kapasite: 5), 5);
         await veri.BaskaDonemDoluSubeEkleAsync(await veri.DersEkleAsync("DKY105"), kapasite: 5, grup: 3);
         int[] o = [await veri.OgrenciEkleAsync("01"), await veri.OgrenciEkleAsync("02"), await veri.OgrenciEkleAsync("03"), await veri.OgrenciEkleAsync("04")];
