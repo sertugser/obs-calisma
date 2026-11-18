@@ -122,6 +122,26 @@ internal sealed class DersKaydiOrtami : IDisposable
         Db.SaveChanges();
     }
 
+    /// <summary>Müfredatın AKTS sınırı alanlarını doldurur; verilmeyen alan boş kalır (boşken üretim varsayılanı geçerli).</summary>
+    public void MufredatAktsSiniriAyarla(int? agnoAlti200 = null, int? ara200Ile249 = null, int? ustu250 = null)
+    {
+        _mufredat.EctsLimitBelow200 = agnoAlti200;
+        _mufredat.EctsLimit200To249 = ara200Ile249;
+        _mufredat.EctsLimitAbove250 = ustu250;
+        Db.SaveChanges();
+    }
+
+    /// <summary>Dersi müfredata "kredisiz" açma nedeniyle ekler (talep edilen derste AKTS toplamından düşülür).</summary>
+    public CurriculumCourse KredisizMufredataEkle(Course ders) =>
+        Kaydet(new CurriculumCourse
+        {
+            CurriculumId = _mufredat.Id, CourseId = ders.Id, IsCompulsory = true, SuggestedSemester = 1,
+            OpeningReason = KredisizNeden()
+        });
+
+    public CurriculumCourseOpeningReason KredisizNeden() =>
+        Kaydet(new CurriculumCourseOpeningReason { Code = "KS" + Guid.NewGuid().ToString("N")[..6], Name = "Kredisiz", IsCreditFree = true });
+
     public GpaCalculationService Gpa() => new(Db, new GradeVisibilityService(Db, new NullWebModuleControlService()));
 
     public RegistrationValidationService Dogrulama() => new(Db, Saat);
