@@ -76,6 +76,7 @@ public class C02_EsdegerlikTests
         var dogrulama = await ortam.Dogrulama().ValidateRegistrationAsync(ortam.Ogrenci.Id, [sube.Id]);
         var katalog = DersKaydiOrtami.Satir(await ortam.KatalogAsync(), "XXX201");
 
+        Assert.True(dogrulama.IsValid);
         Assert.DoesNotContain(dogrulama.Errors, e => e.Rule == "Prerequisite");
         Assert.Equal(katalogKarsilandi, katalog.PrerequisitesMet);
     }
@@ -87,7 +88,7 @@ public class C02_EsdegerlikTests
     [InlineData(true, true, "3.00")]
     [InlineData(false, true, "1.50")]
     [InlineData(true, false, "1.50")]
-    public async Task C02_Ortalama_ZincirGecisli(bool bAlinmis, bool bcBagi, string beklenen)
+    public async Task C02_Ortalama_ZincirAradakiDersAlinmissaBirlesiyor(bool bAlinmis, bool bcBagi, string beklenen)
     {
         using var ortam = new DersKaydiOrtami();
         var (a, b, c, _) = Kur(ortam);

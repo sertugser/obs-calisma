@@ -29,8 +29,10 @@ public class C03_EsKosulTests
         var (ortam, _) = await KurAsync(zPlanda: true);
         using var _ = ortam;
 
-        var satir = DersKaydiOrtami.Satir(await ortam.KatalogAsync(), "XXX201");
+        var katalog = await ortam.KatalogAsync();
+        var satir = DersKaydiOrtami.Satir(katalog, "XXX201");
 
+        Assert.Equal("Kayıtlı", DersKaydiOrtami.Satir(katalog, "ZZZ201").ActiveRegistrationStatus);
         Assert.False(satir.PrerequisitesMet);
         Assert.Equal(["ZZZ201"], satir.MissingPrerequisites);
     }
