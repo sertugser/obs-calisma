@@ -101,6 +101,8 @@ public sealed class C04_KontenjanEszamanlilikTests(PostgresFixture fixture) : IA
     public async Task C04_KarsiOrnek_ArayaGirenGonderim_IlgisizDers_IkisiDeKabul()
     {
         var veri = await DersKaydiVeriKurucu.KurAsync(fixture);
+        // Sorgu planı tablo istatistiğinden bağımsız olsun: dolgu önce, ölçülen şubeler sonra.
+        await veri.DolguSubeleriEkleAsync();
         var subeA = await veri.SubeEkleAsync(await veri.DersEkleAsync("DKY101"), kapasite: 1);
         var subeB = await veri.SubeEkleAsync(await veri.DersEkleAsync("DKY102"), kapasite: 1);
         var bir = await veri.OgrenciEkleAsync("01");
