@@ -21,12 +21,12 @@ public class C06_DerstenCekilmeTests
     }
 
     // Ret sonrası kalıcı durum: kayıt aynı durumda, not yok, sayaçlar ve kontenjan sayısı aynı.
-    private static void Degismedi(DersKaydiOrtami o, int kayitId, RegistrationStatus durum, int ogrenciSayaci = 0)
+    private static void Degismedi(DersKaydiOrtami o, int kayitId, RegistrationStatus durum, int ogrenciSayaci = 0, int cekilmeSayaci = 0)
     {
-
         var k = o.Db.CourseRegistrations.AsNoTracking().Single(r => r.Id == kayitId);
         Assert.Equal(durum, k.Status);
         Assert.Null(k.Grade);
+        Assert.Equal(cekilmeSayaci, k.CourseWithdrawalCount);
         Assert.Equal(ogrenciSayaci, o.Db.Students.AsNoTracking().Single().WithdrawalCount);
         Assert.Equal(1, o.Db.CourseSections.AsNoTracking().Single(s => s.Id == k.CourseSectionId).EnrolledCount);
     }
@@ -133,6 +133,31 @@ public class C06_DerstenCekilmeTests
         Cekildi(o, await Cek(o, a), a.Id);
     }
 
+    // Kol 3 sayımı yalnız aynı dönemdeki Active kayıtları görür: Draft ikinci kayıt ya da başka dönemdeki Active kayıt saymaz.
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task C06_Cekilme_SonDersSayimi_DraftVeBaskaDonemKayitiSaymaz_LastCourseIleReddedilir(bool baskaDonem)
+    {
+        using var o = new DersKaydiOrtami();
+        var a = o.AktifKayitEkle(o.DersEkle("AAA101"));
+        var diger = baskaDonem
+            ? o.KayitEkle(o.DersEkle("BBB101"), RegistrationStatus.Active, o.GecmisDonem)
+            : o.KayitEkle(o.DersEkle("BBB101"), RegistrationStatus.Draft);
+
+        Assert.Equal("LastCourse", TekRet(await Cek(o, a)));
+        Degismedi(o, a.Id, RegistrationStatus.Active);
+
+        if (baskaDonem)
+            o.AktifKayitEkle(o.DersEkle("CCC101"));
+        else
+        {
+            diger.Status = RegistrationStatus.Active;
+            o.Db.SaveChanges();
+        }
+        Cekildi(o, await Cek(o, a), a.Id);
+    }
+
     // Kol 4: aynı dersten ikinci çekilme.
     [Fact]
     public async Task C06_Cekilme_DahaOnceCekilinmisDers_DuplicateWithdrawalIleReddedilir()
@@ -143,7 +168,7 @@ public class C06_DerstenCekilmeTests
         o.Db.SaveChanges();
 
         Assert.Equal("DuplicateWithdrawal", TekRet(await Cek(o, a)));
-        Degismedi(o, a.Id, RegistrationStatus.Active);
+        Degismedi(o, a.Id, RegistrationStatus.Active, cekilmeSayaci: 1);
 
         a.CourseWithdrawalCount = 0;
         o.Db.SaveChanges();
@@ -209,6 +234,26 @@ public class C06_DerstenCekilmeTests
         Cekildi(o, await Cek(o, a), a.Id);
     }
 
+    // Kol 6: başarısız nottan sonraki W ya da I kaydı dersi "sonradan geçilmiş" yapmaz, yasak sürer.
+    [Theory]
+    [InlineData(GradeCode.W)]
+    [InlineData(GradeCode.I)]
+    public async Task C06_Cekilme_AlttanDers_SonrakiWVeyaIGecmisSayilmaz_MandatoryRetakeSurer(GradeCode sonrakiNot)
+    {
+        using var o = new DersKaydiOrtami();
+        var ders = o.DersEkle("AAA101");
+        o.NotEkle(ders, GradeCode.FF, o.OncekiDonem);
+        o.NotEkle(ders, sonrakiNot, o.GecmisDonem);
+        var a = o.AktifKayitEkle(ders);
+        o.AktifKayitEkle(o.DersEkle("BBB101"));
+
+        Assert.Equal("MandatoryRetake", TekRet(await Cek(o, a)));
+        Degismedi(o, a.Id, RegistrationStatus.Active);
+
+        o.NotEkle(ders, GradeCode.CC, o.GecmisDonem);
+        Cekildi(o, await Cek(o, a), a.Id);
+    }
+
     // Kol 7: azami çekilme sayısı (Associate 3, diğerleri 6; üretim varsayılanı). Aynı düzeyde bir eksik sayı kabul edilir.
     [Theory]
     [InlineData(DegreeLevel.Bachelor, 5, true)]
@@ -249,7 +294,7 @@ public class C06_DerstenCekilmeTests
 
         Assert.False(y.Success);
         Assert.Equal(new[] { "LastCourse", "DuplicateWithdrawal" }, y.ValidationResult!.Errors.Select(e => e.Rule));
-        Degismedi(o, a.Id, RegistrationStatus.Active);
+        Degismedi(o, a.Id, RegistrationStatus.Active, cekilmeSayaci: 1);
 
         o.AktifKayitEkle(o.DersEkle("BBB101"));
         Assert.Equal("DuplicateWithdrawal", TekRet(await Cek(o, a)));
