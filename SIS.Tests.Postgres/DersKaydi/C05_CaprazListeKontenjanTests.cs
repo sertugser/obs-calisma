@@ -40,6 +40,15 @@ public sealed class C05_CaprazListeKontenjanTests(PostgresFixture fixture) : IAs
         // Grup toplamı (1 + 2 = 3) ölçülen şubenin kapasitesinden (2) farklıdır: mesajdaki iki sayı ayrı sayılardır.
         var (veri, a, b, o) = await GrupKurAsync();
         await KabulAsync(veri, o[1], b);
+
+        // Sınır: grup toplamı 2 iken (ölçülen şubenin kapasitesine eşit) gönderim reddedilir.
+        await using (var sinirDb = fixture.YeniContext())
+        {
+            var sinir = await veri.GonderAsync(sinirDb, o[2], a);
+            Assert.False(sinir.Success);
+            TekKontenjanHatasi(sinir.ValidationResult!, "dersinin kontenjanı bu esnada doldu (2/2).");
+        }
+
         await KabulAsync(veri, o[3], b);
 
         RegistrationResponseDto sonuc;
