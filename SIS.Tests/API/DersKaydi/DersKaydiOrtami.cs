@@ -142,6 +142,57 @@ internal sealed class DersKaydiOrtami : IDisposable
     public CurriculumCourseOpeningReason KredisizNeden() =>
         Kaydet(new CurriculumCourseOpeningReason { Code = "KS" + Guid.NewGuid().ToString("N")[..6], Name = "Kredisiz", IsCreditFree = true });
 
+    /// <summary>Öğrencinin müfredatından ayrı bir müfredatta (kendi programıyla) dersi "kredisiz" açma nedeniyle tanımlar.</summary>
+    public CurriculumCourse BaskaMufredattaKredisizEkle(Course ders)
+    {
+        var baskaProgram = YeniProgram("BP");
+        var baskaMufredat = Kaydet(new Curriculum { Program = baskaProgram, Name = "Başka Müfredat", Version = "2020" });
+        return Kaydet(new CurriculumCourse
+        {
+            CurriculumId = baskaMufredat.Id, CourseId = ders.Id, IsCompulsory = true, SuggestedSemester = 1,
+            OpeningReason = KredisizNeden()
+        });
+    }
+
+    /// <summary>
+    /// Mevcut program kaydını verilen tür ve etkinlikle bırakır; öğrenciye, varsayılan sınırlı yeni bir müfredatla etkin bir ana program ekler.
+    /// Eski kayıt daha önce eklendiği için süzgeç kalkarsa ilk eşleşen o olur.
+    /// </summary>
+    public void AnaProgramiDegistir(StudentProgramType eskiTur, bool eskiEtkin)
+    {
+        var eski = Db.StudentPrograms.Single();
+        eski.Type = eskiTur;
+        eski.IsActive = eskiEtkin;
+        var program = YeniProgram("YP");
+        var mufredat = Kaydet(new Curriculum { Program = program, Name = "Yeni Müfredat", Version = "2024" });
+        Kaydet(new StudentProgram
+        {
+            Student = Ogrenci, Program = program, Curriculum = mufredat, Type = StudentProgramType.Main,
+            IsActive = true, EnrollmentDate = new DateTime(2024, 9, 15)
+        });
+    }
+
+    private AcademicProgram YeniProgram(string kod) =>
+        Kaydet(new AcademicProgram
+        {
+            Name = kod + " Programı", Code = kod, Department = Db.Set<Department>().Single(), DegreeLevel = DegreeLevel.Bachelor,
+            EducationType = EducationType.Semester, MaxStudyDurationSemesters = 8, TotalRequiredEcts = 240
+        });
+
+    /// <summary>Başka bir öğrencinin etkin dönemdeki yeni bir şubesine verilen durumda kayıt ekler.</summary>
+    public CourseRegistration BaskaOgrenciKayitEkle(Course ders, RegistrationStatus durum)
+    {
+        var kullanici = Kaydet(new ApplicationUser { UserName = "ogrenci2", FirstName = "Deneme", LastName = "İkinci" });
+        var baskasi = Kaydet(new Student
+        {
+            UserId = kullanici.Id, StudentNumber = "2023002", NationalId = "10000000002", Status = StudentStatus.Active,
+            Cgpa = 3.00m, Sgpa = 3.00m, CompletedSemesters = 4
+        });
+        var sube = SubeEkle(ders, EtkinDonem);
+        sube.EnrolledCount = 1;
+        return Kaydet(new CourseRegistration { Student = baskasi, CourseSection = sube, Status = durum, CreatedAt = EtkinDonem.TermStart });
+    }
+
     public GpaCalculationService Gpa() => new(Db, new GradeVisibilityService(Db, new NullWebModuleControlService()));
 
     public RegistrationValidationService Dogrulama() => new(Db, Saat);
