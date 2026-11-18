@@ -10,7 +10,7 @@ using SIS.Infrastructure.Services;
 namespace SIS.Tests.Postgres.DersKaydi;
 
 /// <summary>
-/// Ders kaydı testleri için gerçek PostgreSQL veri kurucu: kayıt penceresi açık bir etkin dönem (Bahar 2026),
+/// Ders kaydı testleri için gerçek PostgreSQL veri kurucu: kayıt penceresi açık bir etkin dönem (2026-2027 Bahar, tarihler 2027),
 /// bir bölümün dersleri, şubeler ve programsız etkin öğrenciler. Dönem, migration verisindeki etkin dönemden sonra
 /// başlar (etkin dönem olarak en geç başlayan seçilir). Saat sabittir; her adım kendi context'iyle yazar,
 /// testler belirli bir Id'ye dayanmaz.
@@ -85,6 +85,69 @@ internal sealed class DersKaydiVeriKurucu(PostgresFixture fixture)
         var kayitlar = await db.CourseRegistrations.Where(r => r.CourseSectionId == subeId)
             .OrderBy(r => r.StudentId).Select(r => new { r.StudentId, r.Status }).ToListAsync();
         return kayitlar.Select(r => (r.StudentId, r.Status)).ToArray();
+    }
+
+    /// <summary>Yeni bir context'le gerçek doğrulama servisi üzerinden tek şubelik doğrulama (gönderim yok).</summary>
+    public async Task<ValidationResultDto> DogrulaAsync(int ogrenciId, int subeId)
+    {
+        await using var db = fixture.YeniContext();
+        return await new RegistrationValidationService(db, new SabitSaat()).ValidateRegistrationAsync(ogrenciId, [subeId]);
+    }
+
+    /// <summary>Şubenin mevcudunu kayıt satırı oluşturmadan verir.</summary>
+    public async Task MevcutVerAsync(int subeId, int mevcut)
+    {
+        await using var db = fixture.YeniContext();
+        await db.CourseSections.Where(s => s.Id == subeId).ExecuteUpdateAsync(u => u.SetProperty(s => s.EnrolledCount, mevcut));
+    }
+
+    /// <summary>Şubeyi iptal edilmiş durumuna alır; mevcut sayısına dokunmaz.</summary>
+    public async Task SubeIptalEtAsync(int subeId)
+    {
+        await using var db = fixture.YeniContext();
+        await db.CourseSections.Where(s => s.Id == subeId)
+            .ExecuteUpdateAsync(u => u.SetProperty(s => s.Status, CourseSectionStatus.Cancelled));
+    }
+
+    /// <summary>Şube satırının bulunduğu sayfanın numarası (ctid'in ilk bileşeni), yeni bir context'le.</summary>
+    public async Task<int> SayfaNoAsync(int subeId)
+    {
+        await using var db = fixture.YeniContext();
+        return await db.Database.SqlQuery<int>(
+            $"select (ctid::text::point)[0]::int as \"Value\" from \"CourseSections\" where \"Id\" = {subeId}").SingleAsync();
+    }
+
+    /// <summary>Etkin olmayan önceki bir dönemde, verilen grupta, kapasitesi dolu bir şube.</summary>
+    public async Task BaskaDonemDoluSubeEkleAsync(int dersId, int kapasite, int grup)
+    {
+        var donem = await KaydetAsync(new AcademicTerm
+        {
+            Name = "2026-2027 Güz", ShortEnglishName = "Fall 2026", TermType = TermType.Fall, Year = 2026,
+            TermStart = Utc(2026, 9, 15), TermEnd = Utc(2027, 1, 15)
+        });
+        await KaydetAsync(new CourseSection
+        {
+            CourseId = dersId, TermId = donem.Id, SectionNumber = 1, Capacity = kapasite, EnrolledCount = kapasite,
+            Status = CourseSectionStatus.Active, CrossListGroupId = grup, CreatedAt = Simdi
+        });
+    }
+
+    /// <summary>
+    /// Şube tablosuna ayrı bir derste 1000 boş şube ekler ve tablonun istatistiğini günceller: şubeye göre okuma,
+    /// istatistik olsa da olmasa da birincil anahtar üzerinden yapılır. Ölçülen şubeler bundan SONRA eklenmelidir.
+    /// Dolgu sayısı ve satır genişliği, ölçülen şubelerin sayfadaki konumunu belirler; araya giren güncellemenin satırı
+    /// aynı sayfada kalmalıdır (sayfa dolarsa güncelleme başka sayfaya gider). Bunu C04 testi açıkça denetler.
+    /// </summary>
+    public async Task DolguSubeleriEkleAsync()
+    {
+        var dersId = await DersEkleAsync("DLG900");
+        await using var db = fixture.YeniContext();
+        db.CourseSections.AddRange(Enumerable.Range(1, 1000).Select(no => new CourseSection
+        {
+            CourseId = dersId, TermId = _donemId, SectionNumber = no, Capacity = 1, Status = CourseSectionStatus.Active, CreatedAt = Simdi
+        }));
+        await db.SaveChangesAsync();
+        await db.Database.ExecuteSqlRawAsync("ANALYZE \"CourseSections\"");
     }
 
     private static DateTime Utc(int yil, int ay, int gun) => new(yil, ay, gun, 0, 0, 0, DateTimeKind.Utc);
