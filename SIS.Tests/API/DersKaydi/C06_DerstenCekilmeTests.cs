@@ -149,12 +149,10 @@ public class C06_DerstenCekilmeTests
         Degismedi(o, a.Id, RegistrationStatus.Active);
 
         if (baskaDonem)
-            o.AktifKayitEkle(o.DersEkle("CCC101"));
+            diger.CourseSection.Term = o.EtkinDonem;
         else
-        {
             diger.Status = RegistrationStatus.Active;
-            o.Db.SaveChanges();
-        }
+        o.Db.SaveChanges();
         Cekildi(o, await Cek(o, a), a.Id);
     }
 
@@ -243,14 +241,15 @@ public class C06_DerstenCekilmeTests
         using var o = new DersKaydiOrtami();
         var ders = o.DersEkle("AAA101");
         o.NotEkle(ders, GradeCode.FF, o.OncekiDonem);
-        o.NotEkle(ders, sonrakiNot, o.GecmisDonem);
+        var sonraki = o.NotEkle(ders, sonrakiNot, o.GecmisDonem);
         var a = o.AktifKayitEkle(ders);
         o.AktifKayitEkle(o.DersEkle("BBB101"));
 
         Assert.Equal("MandatoryRetake", TekRet(await Cek(o, a)));
         Degismedi(o, a.Id, RegistrationStatus.Active);
 
-        o.NotEkle(ders, GradeCode.CC, o.GecmisDonem);
+        sonraki.Grade = GradeCode.CC;
+        o.Db.SaveChanges();
         Cekildi(o, await Cek(o, a), a.Id);
     }
 
@@ -299,6 +298,49 @@ public class C06_DerstenCekilmeTests
         o.AktifKayitEkle(o.DersEkle("BBB101"));
         Assert.Equal("DuplicateWithdrawal", TekRet(await Cek(o, a)));
         a.CourseWithdrawalCount = 0;
+        o.Db.SaveChanges();
+        Cekildi(o, await Cek(o, a), a.Id);
+    }
+
+    // Dönemdeki yönetici istisnası (WithdrawalOverride; gözlenen davranış): true tarihe bakmadan açar, false pencere içinde bile kapatır,
+    // boşsa tarih geçerlidir. Karşı örnek: istisna boşken sonuç tarihe göre tersine döner.
+    [Theory]
+    [InlineData(true, "2025-05-11T12:00:00", true)]
+    [InlineData(false, "2025-03-10T12:00:00", false)]
+    public async Task C06_Cekilme_PencereIstisnasi_TarihinYerineGecer(bool istisna, string an, bool kabul)
+    {
+        using var o = new DersKaydiOrtami();
+        var (a, _) = IkiDers(o);
+        o.Saat.UtcNow = DateTime.Parse(an, CultureInfo.InvariantCulture, DateTimeStyles.AdjustToUniversal | DateTimeStyles.AssumeUniversal);
+
+        void Ayarla(bool? deger)
+        {
+            o.EtkinDonem.AcademicCalendar!.WithdrawalOverride = deger;
+            o.Db.SaveChanges();
+        }
+
+        Ayarla(kabul ? null : istisna);
+        Assert.Equal("TermStatus", TekRet(await Cek(o, a)));
+        Degismedi(o, a.Id, RegistrationStatus.Active);
+
+        Ayarla(kabul ? istisna : null);
+        Cekildi(o, await Cek(o, a), a.Id);
+    }
+
+    // İstisna açık olsa da etkin olmayan dönemde çekilme kapalıdır.
+    [Fact]
+    public async Task C06_Cekilme_PencereIstisnasiAcikAmaDonemPasif_TermStatusIleReddedilir()
+    {
+        using var o = new DersKaydiOrtami();
+        var (a, _) = IkiDers(o);
+        o.EtkinDonem.AcademicCalendar!.WithdrawalOverride = true;
+        o.EtkinDonem.IsActivated = false;
+        o.Db.SaveChanges();
+
+        Assert.Equal("TermStatus", TekRet(await Cek(o, a)));
+        Degismedi(o, a.Id, RegistrationStatus.Active);
+
+        o.EtkinDonem.IsActivated = true;
         o.Db.SaveChanges();
         Cekildi(o, await Cek(o, a), a.Id);
     }
