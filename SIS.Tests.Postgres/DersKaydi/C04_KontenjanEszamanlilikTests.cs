@@ -108,8 +108,12 @@ public sealed class C04_KontenjanEszamanlilikTests(PostgresFixture fixture) : IA
         var bir = await veri.OgrenciEkleAsync("01");
         var iki = await veri.OgrenciEkleAsync("02");
 
+        var sayfaOnce = await veri.SayfaNoAsync(subeB);
         var (sonuc, araSonuc) = await ArayaGirerekGonderAsync(veri, bir, subeA, iki, subeB);
 
+        // Ön koşul: araya giren güncelleme satırı başka sayfaya taşırsa sonuç yerleşime bağlı kalır.
+        Assert.True(sayfaOnce == await veri.SayfaNoAsync(subeB),
+            "ön koşul: güncelleme aynı sayfada kalmalı; dolgu sayısı ya da satır genişliği değişmiş olabilir");
         Assert.True(araSonuc.Success);
         Assert.True(sonuc.Success);
         Assert.Empty(sonuc.ValidationResult!.Errors);

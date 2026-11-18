@@ -35,6 +35,16 @@ public sealed class O04_DenetimKaydiKorumaTests(PostgresFixture fixture) : IAsyn
         }
         Assert.Equal(new[] { "Ilk" }, await EylemlerAsync());
 
+        if (!sil)
+        {
+            // Güncelleme tetikleyicisi sütuna bağlı değildir: başka bir sütunun güncellenmesi de aynı hatayla reddedilir.
+            await using var db = fixture.YeniContext();
+            var hata = await Assert.ThrowsAsync<PostgresException>(() =>
+                db.AuditLogs.Where(k => k.Id == id).ExecuteUpdateAsync(u => u.SetProperty(k => k.EntityType, "Baska")));
+            Assert.Equal("P0001", hata.SqlState);
+            Assert.Equal($"AuditLog tablosunda güncelleme ve silme işlemleri yasaktır. Kayıt ID: {id}", hata.MessageText);
+        }
+
         // Kontrol: işlem içinde yalnız bu tetikleyici kapatılınca aynı komut satırı etkiler. İşlem her durumda geri alınır
         // (hata olursa işlemin kapatılması geri alır), tetikleyici kalıcı olarak kapanmaz.
         await using (var db = fixture.YeniContext())
@@ -47,7 +57,7 @@ public sealed class O04_DenetimKaydiKorumaTests(PostgresFixture fixture) : IAsyn
             await islem.RollbackAsync();
         }
         Assert.Equal(new[] { "Ilk" }, await EylemlerAsync());
-        Assert.Equal(new[] { "trg_audit_log_no_delete:O", "trg_audit_log_no_update:O" }, await TetikleyicilerAsync());
+        Assert.Equal(new[] { "trg_audit_log_no_delete:O:", "trg_audit_log_no_update:O:" }, await TetikleyicilerAsync());
     }
 
     private static Task<int> DegistirAsync(AppDbContext db, int id, bool sil) => sil
@@ -61,12 +71,12 @@ public sealed class O04_DenetimKaydiKorumaTests(PostgresFixture fixture) : IAsyn
         return await db.AuditLogs.Select(k => k.Action).ToArrayAsync();
     }
 
-    // Denetim kaydı tablosundaki tetikleyiciler ve etkinlik durumları (O: etkin).
+    // Denetim kaydı tablosundaki tetikleyiciler, etkinlik durumları (O: etkin) ve sütun listeleri (boş: bütün sütunlar).
     private async Task<List<string>> TetikleyicilerAsync()
     {
         await using var baglanti = await fixture.BaglantiAcAsync();
         await using var komut = new NpgsqlCommand(
-            "select tgname || ':' || tgenabled::text from pg_trigger where tgrelid = '\"AuditLogs\"'::regclass and not tgisinternal order by 1",
+            "select tgname || ':' || tgenabled::text || ':' || tgattr::text from pg_trigger where tgrelid = '\"AuditLogs\"'::regclass and not tgisinternal order by 1",
             baglanti);
         await using var okuyucu = await komut.ExecuteReaderAsync();
         var sonuc = new List<string>();

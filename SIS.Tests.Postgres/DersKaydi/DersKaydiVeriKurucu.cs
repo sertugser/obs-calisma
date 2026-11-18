@@ -101,30 +101,48 @@ internal sealed class DersKaydiVeriKurucu(PostgresFixture fixture)
         await db.CourseSections.Where(s => s.Id == subeId).ExecuteUpdateAsync(u => u.SetProperty(s => s.EnrolledCount, mevcut));
     }
 
+    /// <summary>Şubeyi iptal edilmiş durumuna alır; mevcut sayısına dokunmaz.</summary>
+    public async Task SubeIptalEtAsync(int subeId)
+    {
+        await using var db = fixture.YeniContext();
+        await db.CourseSections.Where(s => s.Id == subeId)
+            .ExecuteUpdateAsync(u => u.SetProperty(s => s.Status, CourseSectionStatus.Cancelled));
+    }
+
+    /// <summary>Şube satırının bulunduğu sayfanın numarası (ctid'in ilk bileşeni), yeni bir context'le.</summary>
+    public async Task<int> SayfaNoAsync(int subeId)
+    {
+        await using var db = fixture.YeniContext();
+        return await db.Database.SqlQuery<int>(
+            $"select (ctid::text::point)[0]::int as \"Value\" from \"CourseSections\" where \"Id\" = {subeId}").SingleAsync();
+    }
+
     /// <summary>Etkin olmayan önceki bir dönemde, verilen grupta, kapasitesi dolu bir şube.</summary>
-    public async Task<int> BaskaDonemDoluSubeEkleAsync(int dersId, int kapasite, int grup)
+    public async Task BaskaDonemDoluSubeEkleAsync(int dersId, int kapasite, int grup)
     {
         var donem = await KaydetAsync(new AcademicTerm
         {
             Name = "2026-2027 Güz", ShortEnglishName = "Fall 2026", TermType = TermType.Fall, Year = 2026,
             TermStart = Utc(2026, 9, 15), TermEnd = Utc(2027, 1, 15)
         });
-        return (await KaydetAsync(new CourseSection
+        await KaydetAsync(new CourseSection
         {
             CourseId = dersId, TermId = donem.Id, SectionNumber = 1, Capacity = kapasite, EnrolledCount = kapasite,
             Status = CourseSectionStatus.Active, CrossListGroupId = grup, CreatedAt = Simdi
-        })).Id;
+        });
     }
 
     /// <summary>
     /// Şube tablosuna ayrı bir derste 1000 boş şube ekler ve tablonun istatistiğini günceller: şubeye göre okuma,
     /// istatistik olsa da olmasa da birincil anahtar üzerinden yapılır. Ölçülen şubeler bundan SONRA eklenmelidir.
+    /// Dolgu sayısı ve satır genişliği, ölçülen şubelerin sayfadaki konumunu belirler; araya giren güncellemenin satırı
+    /// aynı sayfada kalmalıdır (sayfa dolarsa güncelleme başka sayfaya gider). Bunu C04 testi açıkça denetler.
     /// </summary>
-    public async Task DolguSubeleriEkleAsync()
+    public async Task DolguSubeleriEkleAsync(int adet = 1000)
     {
         var dersId = await DersEkleAsync("DLG900");
         await using var db = fixture.YeniContext();
-        db.CourseSections.AddRange(Enumerable.Range(1, 1000).Select(no => new CourseSection
+        db.CourseSections.AddRange(Enumerable.Range(1, adet).Select(no => new CourseSection
         {
             CourseId = dersId, TermId = _donemId, SectionNumber = no, Capacity = 1, Status = CourseSectionStatus.Active, CreatedAt = Simdi
         }));
