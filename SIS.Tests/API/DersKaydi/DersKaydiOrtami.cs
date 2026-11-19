@@ -172,6 +172,14 @@ internal sealed class DersKaydiOrtami : IDisposable
         });
     }
 
+    /// <summary>Dersi öğrencinin şu anki ana ve etkin programının müfredatına "kredisiz" açma nedeniyle ekler.</summary>
+    public CurriculumCourse AnaProgramMufredatinaKredisizEkle(Course ders) =>
+        Kaydet(new CurriculumCourse
+        {
+            CurriculumId = Db.StudentPrograms.Single(sp => sp.Type == StudentProgramType.Main && sp.IsActive).CurriculumId,
+            CourseId = ders.Id, IsCompulsory = true, SuggestedSemester = 1, OpeningReason = KredisizNeden()
+        });
+
     private AcademicProgram YeniProgram(string kod) =>
         Kaydet(new AcademicProgram
         {
