@@ -52,6 +52,8 @@ internal sealed class DersProgramiVeriKurucu(PostgresFixture fixture)
     public static readonly (TimeOnly Bas, TimeOnly Bit) Z1 = (new(9, 0), new(9, 50));
     public static readonly (TimeOnly Bas, TimeOnly Bit) Z2 = (new(10, 0), new(10, 50));
 
+    private readonly HashSet<int> _kullanilanKimlikler = [];
+
     public int FakulteId { get; private set; }
     public int DonemId { get; private set; }
     public int DersId { get; private set; }
@@ -80,8 +82,9 @@ internal sealed class DersProgramiVeriKurucu(PostgresFixture fixture)
         })).Id;
         veri.Z1Id = (await veri.KaydetAsync(Dilim(veri.DonemId, Z1, 1))).Id;
         veri.Z2Id = (await veri.KaydetAsync(Dilim(veri.DonemId, Z2, 2))).Id;
-        veri.D1Id = (await veri.KaydetAsync(Derslik(veri.D1Adi))).Id;
-        veri.D2Id = (await veri.KaydetAsync(Derslik("DP-102"))).Id;
+        veri._kullanilanKimlikler.UnionWith([veri.Z1Id, veri.Z2Id]);
+        veri.D1Id = (await veri.AyrikKaydetAsync(() => Derslik(veri.D1Adi), d => d.Id)).Id;
+        veri.D2Id = (await veri.AyrikKaydetAsync(() => Derslik("DP-102"), d => d.Id)).Id;
         var kullanici = await veri.KaydetAsync(new ApplicationUser { UserName = "dphoca", FirstName = "Deneme", LastName = "Hoca" });
         veri.KullaniciId = kullanici.Id;
         veri.HocaId = (await veri.KaydetAsync(new Instructor
@@ -91,10 +94,10 @@ internal sealed class DersProgramiVeriKurucu(PostgresFixture fixture)
         return veri;
     }
 
-    public async Task<int> SubeEkleAsync(int no) => (await KaydetAsync(new CourseSection
+    public async Task<int> SubeEkleAsync(int no) => (await AyrikKaydetAsync(() => new CourseSection
     {
         CourseId = DersId, TermId = DonemId, SectionNumber = no, Capacity = 30, Status = CourseSectionStatus.Active
-    })).Id;
+    }, s => s.Id)).Id;
 
     /// <summary>Şubenin program satırları (derslik, zaman dilimi), yeni bir context'le.</summary>
     public async Task<(int?, int)[]> ProgramAsync(int subeId)
@@ -142,6 +145,23 @@ internal sealed class DersProgramiVeriKurucu(PostgresFixture fixture)
     };
 
     private static Classroom Derslik(string ad) => new() { Name = ad, BuildingName = "DP Blok", Capacity = 40, Type = ClassroomType.Lecture };
+
+    /// <summary>
+    /// Şube, zaman dilimi ve derslik kimlikleri birbirinden ayrık olsun diye: kimliği daha önce kullanılanlarla denk gelen kayıt silinir,
+    /// bir sonrakiyle yeniden denenir (üretimde bu üçünün yer değiştirmesi, sayılar denk geldiğinde fark edilmez).
+    /// </summary>
+    private async Task<T> AyrikKaydetAsync<T>(Func<T> uret, Func<T, int> kimlik) where T : class
+    {
+        while (true)
+        {
+            var varlik = await KaydetAsync(uret());
+            if (_kullanilanKimlikler.Add(kimlik(varlik)))
+                return varlik;
+            await using var db = fixture.YeniContext();
+            db.Remove(varlik);
+            await db.SaveChangesAsync();
+        }
+    }
 
     private async Task<T> KaydetAsync<T>(T varlik) where T : class
     {

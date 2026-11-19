@@ -65,6 +65,8 @@ public sealed class E01_ExcelIceAktarmaParametreTests(PostgresFixture fixture, D
         var veri = await DersProgramiVeriKurucu.KurAsync(fixture);
         Assert.NotEqual(veri.FakulteId, veri.DonemId);
         var sube = await veri.SubeEkleAsync(1);
+        // Yazılan program satırındaki kimlikler (şube, zaman dilimi, derslik) denk gelirse yer değiştirme fark edilmez.
+        Assert.Equal(5, new[] { sube, veri.Z1Id, veri.Z2Id, veri.D1Id, veri.D2Id }.Distinct().Count());
         return (veri, sube, await DersProgramiVeriKurucu.YoneticiIstemcisiAsync(uygulama.Al(fixture.BaglantiCumlesi)));
     }
 
