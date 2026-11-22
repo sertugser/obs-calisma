@@ -81,6 +81,15 @@ internal sealed class YetkiKurucu(PostgresFixture fixture, WebApplicationFactory
     public Task<HttpResponseMessage> ParolaDegistirAsync(HttpClient istemci, string email) =>
         istemci.PostAsJsonAsync("/api/auth/change-password", new { currentPassword = _parolalar[email], newPassword = RastgeleParola() });
 
+    /// <summary>Kullanıcıya fakülte kapsamı satırı (UserScopes) ekler; tarih sabit.</summary>
+    public async Task FakulteKapsamiAsync(int kullaniciId, int fakulteId)
+    {
+        var tarih = new DateTime(2045, 1, 10, 0, 0, 0, DateTimeKind.Utc);
+        await using var db = fixture.YeniContext();
+        db.UserScopes.Add(new UserScope { UserId = kullaniciId, Kind = ScopeKind.Faculty, FacultyId = fakulteId, CreatedAt = tarih, UpdatedAt = tarih });
+        await db.SaveChangesAsync();
+    }
+
     // Büyük harf, küçük harf, rakam ve simge içeren rastgele parola.
     private static string RastgeleParola() => "Aa1!" + Convert.ToHexString(RandomNumberGenerator.GetBytes(16));
 }

@@ -17,6 +17,32 @@ internal sealed class KapsamVeriKurucu(PostgresFixture fixture)
 
     public int[] DersIdleri { get; private set; } = [];
 
+    public int BolumId => _bolumId;
+
+    public int ProgramId => _programId;
+
+    /// <summary>Varlık kurmadan: verilen kimlikler (kullanıcı, fakülte, dönem vb.) sonraki varlıkların ayrıştırılacağı kümeye girer.</summary>
+    public static KapsamVeriKurucu Ayristirici(PostgresFixture fixture, params int[] kimlikler)
+    {
+        var veri = new KapsamVeriKurucu(fixture);
+        veri._kullanilanKimlikler.UnionWith(kimlikler);
+        return veri;
+    }
+
+    /// <summary>Bölümsüz yeni fakülte; kimliği ayrık.</summary>
+    public async Task<int> FakulteAsync(string kod) =>
+        (await AyrikKaydetAsync(() => new Faculty { Name = kod + " Fakültesi", Code = kod }, f => f.Id)).Id;
+
+    /// <summary>Verilen fakültede yeni bölüm; kimliği ayrık.</summary>
+    public async Task<int> BolumAsync(int fakulteId, string kod) =>
+        (await AyrikKaydetAsync(() => new Department { Name = kod + " Bölümü", Code = kod, FacultyId = fakulteId }, d => d.Id)).Id;
+
+    /// <summary>Kullanıcıya bağlı, verilen bölümdeki öğretim elemanı; kimliği ayrık.</summary>
+    public async Task<int> OgretimElemaniAsync(int kullaniciId, int bolumId) => (await AyrikKaydetAsync(() => new Instructor
+    {
+        UserId = kullaniciId, DepartmentId = bolumId, Title = "Dr.", MaxWeeklyHours = 20, CreatedAt = Tarih
+    }, i => i.Id)).Id;
+
     /// <summary>Kullanıcılar önceden oluşturulur; kimlikleri sonraki varlıkların ayrıştırılacağı kümeye girer.</summary>
     public static async Task<KapsamVeriKurucu> KurAsync(PostgresFixture fixture, params int[] kullaniciIdleri)
     {
