@@ -77,6 +77,10 @@ internal sealed class YetkiKurucu(PostgresFixture fixture, WebApplicationFactory
         return istemci;
     }
 
+    /// <summary>Gerçek parola değiştirme ucu: saklı parola ve yeni rastgele bir parola gönderilir.</summary>
+    public Task<HttpResponseMessage> ParolaDegistirAsync(HttpClient istemci, string email) =>
+        istemci.PostAsJsonAsync("/api/auth/change-password", new { currentPassword = _parolalar[email], newPassword = RastgeleParola() });
+
     // Büyük harf, küçük harf, rakam ve simge içeren rastgele parola.
     private static string RastgeleParola() => "Aa1!" + Convert.ToHexString(RandomNumberGenerator.GetBytes(16));
 }

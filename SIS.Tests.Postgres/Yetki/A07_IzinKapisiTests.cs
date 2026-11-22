@@ -41,6 +41,19 @@ public sealed class A07_IzinKapisiTests(PostgresFixture fixture, DersProgramiUyg
         Assert.NotEqual(hedef, digeri);
     }
 
+    // Rolde yalnız dönem görüntüleme izni var; karşı örnek yukarıdaki iptal izni olan rol testi.
+    [Fact]
+    public async Task A07_YalnizDonemGoruntulemeIzniOlanRolDonemIptalinde403Alir_GovdeBos_DonemlerDegismez()
+    {
+        var (istemci, hedef, _) = await KurAsync("menu.akademik-donem.view");
+
+        var yanit = await istemci.PostAsync($"/api/admin/terms/{hedef}/cancel", null);
+
+        Assert.Equal(HttpStatusCode.Forbidden, yanit.StatusCode);
+        Assert.Equal(string.Empty, await yanit.Content.ReadAsStringAsync());
+        Assert.Empty(await IptalEdilenlerAsync());
+    }
+
     /// <summary>
     /// Öğrenci rolü ve kullanıcısı; iptal izni her iki testte de başka bir rolde var (kullanıcısız).
     /// Hedef ve ikinci bir dönem (migration'daki dönemler de yerinde); dönem kimlikleri kullanıcı ve rol kimliğiyle denk gelmez.
