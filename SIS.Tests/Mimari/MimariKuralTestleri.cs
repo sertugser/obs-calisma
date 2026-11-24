@@ -5,7 +5,7 @@ using Microsoft.EntityFrameworkCore;
 namespace SIS.Tests.Mimari;
 
 /// <summary>
-/// Katman yapısını sabitleyen mimari testler (CLAUDE.md §2-3).
+/// Katman yapısını sabitleyen mimari testler (kural dosyasındaki katman kuralları).
 /// Bugünkü ihlaller <see cref="BilinenIhlaller"/> içindedir; liste yalnız küçülür.
 /// Her kural iki yönlü çalışır: listede olmayan ihlal testi kırar (yeni ihlal),
 /// listede olup artık ihlal olmayan kayıt da testi kırar (ölü istisna).
@@ -18,7 +18,7 @@ public class MimariKuralTestleri
     private static readonly Assembly ApiDerlemesi = typeof(global::SIS.API.Controllers.GradeController).Assembly;
 
     /// <summary>
-    /// K2 izin listesi (CLAUDE.md:11): SIS.Application'ın System.* dışında başvurabileceği derlemeler.
+    /// K2 izin listesi (kural dosyasındaki Application katmanı kuralı):SIS.Application'ın System.* dışında başvurabileceği derlemeler.
     /// Bu listeye eklemek mimari karardır. Sıralı (ordinal) tutulur.
     /// </summary>
     internal static readonly string[] ApplicationIzinListesi =
@@ -38,7 +38,7 @@ public class MimariKuralTestleri
         BilinenlerleKarsilastir(
             bulunan,
             BilinenIhlaller.K1DomainBasvurulari,
-            ad => $"K1 yeni ihlal (CLAUDE.md:10, :32 Domain çatıdan bağımsız): SIS.Domain izin verilmeyen derlemeye başvuruyor: {ad}",
+            ad => $"K1 yeni ihlal (katman kuralı: Domain çatıdan bağımsız): SIS.Domain izin verilmeyen derlemeye başvuruyor: {ad}",
             ad => $"K1 ölü istisna: SIS.Domain artık {ad} derlemesine başvurmuyor; BilinenIhlaller.K1DomainBasvurulari'ndan düşün (liste yalnız küçülür)");
     }
 
@@ -47,10 +47,18 @@ public class MimariKuralTestleri
     {
         var bulunan = IzinsizBasvurular(ApplicationDerlemesi, ApplicationIzinListesi);
 
+        var basvurular = ApplicationDerlemesi.GetReferencedAssemblies()
+            .Select(a => a.Name ?? string.Empty)
+            .ToHashSet(StringComparer.Ordinal);
+        var oluIzinler = ApplicationIzinListesi.Where(ad => !basvurular.Contains(ad))
+            .Select(ad => $"izin listesinde ölü kayıt: {ad}; listeden düşün")
+            .ToList();
+        Assert.True(oluIzinler.Count == 0, string.Join(Environment.NewLine, oluIzinler));
+
         BilinenlerleKarsilastir(
             bulunan,
             BilinenIhlaller.K2ApplicationBasvurulari,
-            ad => $"K2 yeni ihlal (CLAUDE.md:11 Application → yalnız Domain): SIS.Application izin verilmeyen derlemeye başvuruyor: {ad}. "
+            ad => $"K2 yeni ihlal (katman kuralı: Application yalnız Domain'e bağlı): SIS.Application izin verilmeyen derlemeye başvuruyor: {ad}. "
                 + "ApplicationIzinListesi'ne eklemek mimari karardır.",
             ad => $"K2 ölü istisna: SIS.Application artık {ad} derlemesine başvurmuyor; BilinenIhlaller.K2ApplicationBasvurulari'ndan düşün (liste yalnız küçülür)");
     }
@@ -63,7 +71,7 @@ public class MimariKuralTestleri
 
         var yeniler = bulunan.Where(p => !bilinen.Contains(p.Key))
             .OrderBy(p => p.Key, StringComparer.Ordinal)
-            .Select(p => $"K3 yeni ihlal (CLAUDE.md:31 Controller DbContext kullanmaz): {p.Key} → {string.Join("; ", p.Value)}")
+            .Select(p => $"K3 yeni ihlal (katman kuralı: denetleyici DbContext kullanmaz): {p.Key} → {string.Join("; ", p.Value)}")
             .ToList();
 
         Assert.True(yeniler.Count == 0, string.Join(Environment.NewLine, yeniler));
@@ -135,7 +143,7 @@ public class MimariKuralTestleri
 
     /// <summary>
     /// API derlemesindeki soyut olmayan ControllerBase türevlerinden imzasında DbContext türevi olanlar.
-    /// İç içe türler (derleyici üretimi kapanış ve durum makineleri dahil) ve ControllerBase'e kadar
+    /// İç içe türler (derleyici üretimi kapanış sınıfları dahil; async/iterator durum makineleri hariç) ve ControllerBase'e kadar
     /// taban sınıflar, ait oldukları denetleyiciye atfedilir. Anahtar: denetleyicinin tam adı;
     /// değer: "DbContext türü (üye)" açıklamaları.
     /// </summary>
@@ -146,7 +154,7 @@ public class MimariKuralTestleri
 
         foreach (var denetleyici in turler.Where(t => typeof(ControllerBase).IsAssignableFrom(t) && !t.IsAbstract))
         {
-            var incelenen = turler.Where(t => EnDistakiTur(t) == denetleyici)
+            var incelenen = turler.Where(t => EnDistakiTur(t) == denetleyici && !DurumMakinesi(t))
                 .Concat(TabanSiniflar(denetleyici));
 
             var bulgular = incelenen.SelectMany(ImzaTurleri)
@@ -162,6 +170,16 @@ public class MimariKuralTestleri
 
         return sonuc;
     }
+
+    /// <summary>
+    /// Derleyici üretimi async/iterator durum makinesi mi? Alanları yerel değişkenleri tutar ve
+    /// yapılandırmaya (Debug/Release) göre değişir; bu yüzden taranmaz. Lambda kapanış sınıfları taranır.
+    /// </summary>
+    private static bool DurumMakinesi(Type tur) =>
+        typeof(System.Runtime.CompilerServices.IAsyncStateMachine).IsAssignableFrom(tur)
+        || (tur.IsDefined(typeof(System.Runtime.CompilerServices.CompilerGeneratedAttribute), false)
+            && (typeof(System.Collections.IEnumerator).IsAssignableFrom(tur)
+                || typeof(System.Collections.IEnumerable).IsAssignableFrom(tur)));
 
     private static Type EnDistakiTur(Type tur)
     {
