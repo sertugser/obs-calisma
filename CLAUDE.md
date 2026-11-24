@@ -47,7 +47,8 @@ Bugünkü durum (bilinen borç; örnek alınmaz, yeni kod yukarıdaki kurallara 
 - İş kuralları `SIS.Infrastructure/Services/` altında da duruyor (örn. `SeatLedger`,
   `PrerequisiteEvaluator`). `PrerequisiteEvaluator` Infrastructure'da `internal static` bir sınıf;
   Domain'de olmalı.
-- Mimari testler henüz yok.
+- Mimari testler `SIS.Tests/Mimari/`: K1 Domain yalnız System.*'a, K2 Application yalnız System.*, Domain ve izin listesine başvurur; K3 denetleyici DbContext'e bağlanmaz.
+  Bugünkü ihlaller `SIS.Tests/Mimari/BilinenIhlaller.cs`'te; liste yalnız küçülür (yeni ihlal de, düzelip listede kalan kayıt da testi kırar).
 
 ## 4. Çalışma kuralları
 - Bir oturum, bir iş paketi; paketin kapsamı dışına çıkılmaz.
