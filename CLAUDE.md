@@ -47,7 +47,8 @@ Bugünkü durum (bilinen borç; örnek alınmaz, yeni kod yukarıdaki kurallara 
 - İş kuralları `SIS.Infrastructure/Services/` altında da duruyor (örn. `SeatLedger`,
   `PrerequisiteEvaluator`). `PrerequisiteEvaluator` Infrastructure'da `internal static` bir sınıf;
   Domain'de olmalı.
-- Mimari testler henüz yok.
+- Mimari testler `SIS.Tests/Mimari/`: K1 Domain yalnız System.*'a, K2 Application yalnız System.*, Domain ve izin listesine başvurur; K3 denetleyici DbContext'e bağlanmaz.
+  Bugünkü ihlaller `SIS.Tests/Mimari/BilinenIhlaller.cs`'te; liste yalnız küçülür (yeni ihlal de, düzelip listede kalan kayıt da testi kırar).
 
 ## 4. Çalışma kuralları
 - Bir oturum, bir iş paketi; paketin kapsamı dışına çıkılmaz.
@@ -83,7 +84,7 @@ Paket açıkça bunlarla ilgili değilse dokunulmaz:
   docker run --rm -v "${PWD}:/src:ro" mcr.microsoft.com/dotnet/sdk:10.0 sh -c "mkdir /work && tar -C /src --exclude=node_modules --exclude=bin --exclude=obj --exclude=.git -cf - . | tar -C /work -xf - && cd /work && dotnet test"
   ```
   Klasör salt okunur bağlanır ve konteynere kopyalanır; böylece Windows'taki `bin/` ve `obj/` bozulmaz.
-- Test taban çizgisi: 1.626 test; 1.624 geçti, 0 kaldı, 2 atlandı. Her değişiklik bununla karşılaştırılır.
+- Test taban çizgisi: 1.631 test; 1.629 geçti, 0 kaldı, 2 atlandı. Her değişiklik bununla karşılaştırılır.
 - Gerçek PostgreSQL testleri (`SIS.Tests.Postgres`, Testcontainers, `postgres:18.7-trixie`) yukarıdaki komuta ve taban çizgisine girmez; Docker soketiyle ayrı çalıştırılır (~7 dk, Development seed'i):
   `docker run --rm -v "${PWD}:/src:ro" -v /var/run/docker.sock:/var/run/docker.sock -e TESTCONTAINERS_HOST_OVERRIDE=host.docker.internal -e PostgresTestleri=true mcr.microsoft.com/dotnet/sdk:10.0 sh -c "mkdir /work && tar -C /src --exclude=node_modules --exclude=bin --exclude=obj --exclude=.git -cf - . | tar -C /work -xf - && cd /work && dotnet test SIS.Tests.Postgres"`
   CI'da `PostgreSQL Tests` iş akışı (`.github/workflows/postgres-tests.yml`) çalıştırır; zorunlu kontrol değildir.
