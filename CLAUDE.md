@@ -90,7 +90,7 @@ Paket açıkça bunlarla ilgili değilse dokunulmaz:
   CI'da `PostgreSQL Tests` iş akışı (`.github/workflows/postgres-tests.yml`) çalıştırır; zorunlu kontrol değildir.
 - nuget-license da aynı nedenle Docker içinde çalıştırılır.
 - Frontend (`SIS.Web/` içinde): `npm ci`, `npm run lint`, `npx tsc --noEmit`, `npm run build`.
-- Uçtan uca duman testleri (`SIS.Web/e2e-duman`, 8 test; CI'da `E2E Smoke`, zorunlu değil): repo kökünden `powershell -File SIS.Web/e2e-duman/calistir.ps1`.
+- Uçtan uca duman testleri (`SIS.Web/e2e-duman`, 8 test; yerelde koşulur): repo kökünden `powershell -File SIS.Web/e2e-duman/calistir.ps1`.
   Konteynerler `obs-duman-*`, kapılar 15173/15213; ilk seed ~6 dk; `-AcikBirak` konteynerleri tekrar koşu için bırakır. Mevcut `SIS.Web/e2e` takımı CI'da koşmaz.
 
 ## 7. Git ve PR

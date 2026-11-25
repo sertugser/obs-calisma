@@ -19,14 +19,23 @@ function Remove-Duman {
   }
   if (docker network ls -q --filter "name=^obs-duman-net$") { docker network rm obs-duman-net | Out-Null }
 }
+function Show-ApiGunluk {
+  # Kurulum hatasinda konteyner silinmeden once: yalniz uyari/hata satirlari; "@", parola ve baglanti dizisi iceren satirlar haric.
+  Write-Host 'obs-duman-api gunlugunun son uyari ve hata satirlari:'
+  try {
+    cmd /c "docker logs --tail 500 obs-duman-api 2>&1" |
+      Where-Object { $_ -match '(?i)^(warn|fail|crit)|error|exception' -and $_ -notmatch '(?i)@|password|pwd|host=|server=|connectionstring|jwt' } |
+      Select-Object -Last 20 | ForEach-Object { Write-Host $_ }
+  } catch { Write-Host '(gunluk okunamadi)' }
+}
 function Wait-Adres([string]$url, [string]$konteyner, [int]$dakika) {
   $son = (Get-Date).AddMinutes($dakika)
   while ((Get-Date) -lt $son) {
-    if (-not (Test-Calisiyor $konteyner)) { throw "$konteyner durdu: docker logs $konteyner" }
+    if (-not (Test-Calisiyor $konteyner)) { throw "$konteyner durdu (son uyari ve hata satirlari asagida)" }
     try { if ((Invoke-WebRequest $url -UseBasicParsing -TimeoutSec 5).StatusCode -eq 200) { return } } catch { }
     Start-Sleep -Seconds 5
   }
-  throw "$url $dakika dakikada hazir olmadi"
+  throw "$url $dakika dakikada hazir olmadi (son uyari ve hata satirlari asagida)"
 }
 
 if (-not (Test-Calisiyor 'obs-duman-api')) {
@@ -56,6 +65,7 @@ try {
   try { npx playwright test -c playwright.duman.config.ts @PwArgs; $kod = $LASTEXITCODE } finally { Pop-Location }
 } finally {
   Remove-Item Env:DUMAN_PAROLA -ErrorAction SilentlyContinue
+  if ($null -eq $kod) { Show-ApiGunluk }
   if (-not $AcikBirak) { Remove-Duman }
 }
 exit $kod

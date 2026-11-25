@@ -1,4 +1,4 @@
-import { test as temel, expect, type BrowserContext, type Page, type Response } from '@playwright/test';
+import { test as temel, expect, type BrowserContext, type Locator, type Page, type Response } from '@playwright/test';
 
 // Arayüzün bugünkü dilindeki görünen metinler tek yerde.
 export const METIN = {
@@ -14,6 +14,7 @@ export const METIN = {
   kullaniciTanimlama: 'Kullanıcı Tanımlama',
   rolleriDuzenle: 'Rolleri Düzenle',
   transkript: 'Transkript',
+  ogrenciNoSatiri: /Öğrenci No \d+/,
   transkriptBos: 'Bu öğrenci için henüz transkriptte gösterilecek harf notlu ders kaydı bulunmuyor.',
   dersKayit: 'Ders Kayıt',
   mufredatDersleri: 'Müfredat Dersleri',
@@ -33,18 +34,32 @@ function ortam(ad: string): string {
 
 export const parola = (): string => ortam('DUMAN_PAROLA');
 
+// Alan değerini sayfa içinden yazar: fill() değeri rapordaki adım başlığına yazar.
+const alanaYaz = (alan: Locator, deger: string) =>
+  alan.evaluate((el: HTMLInputElement, d: string) => {
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set?.call(el, d);
+    el.dispatchEvent(new Event('input', { bubbles: true }));
+  }, deger);
+
 // Arayüzden giriş formunu doldurur ve gönderir; sonucu çağıran iddia eder.
+// Kırılan iddiaya Playwright sayfa dökümünü ekler; bu yüzden düğme görünür olmadan parola
+// alana konmaz ve basıştan hemen sonra alanlar boşaltılır.
 export async function formuGonder(page: Page, rol: Rol, sifre: string): Promise<void> {
   await page.goto('/login');
-  await page.getByLabel(METIN.epostaEtiketi).fill(ortam(`DUMAN_EPOSTA_${rol}`));
-  // fill() değeri rapordaki adım başlığına yazar; parola alana sayfa içinden konur.
-  await page.getByLabel(METIN.sifreEtiketi).evaluate((alan: HTMLInputElement, deger: string) => {
-    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set?.call(alan, deger);
-    alan.dispatchEvent(new Event('input', { bubbles: true }));
-  }, sifre);
-  await page.getByRole('button', { name: METIN.girisDugmesi, exact: true }).click();
+  const eposta = page.getByLabel(METIN.epostaEtiketi);
+  const sifreAlani = page.getByLabel(METIN.sifreEtiketi);
+  const dugme = page.getByRole('button', { name: METIN.girisDugmesi, exact: true });
+  await expect(dugme).toBeVisible();
+  await alanaYaz(eposta, ortam(`DUMAN_EPOSTA_${rol}`));
+  await alanaYaz(sifreAlani, sifre);
+  try {
+    await dugme.click();
+  } finally {
+    // Gönderim yapıldı; sayfa gezinmişse alan zaten yoktur.
+    await alanaYaz(sifreAlani, '').catch(() => undefined);
+    await alanaYaz(eposta, '').catch(() => undefined);
+  }
 }
-
 // Doğru parolayla giriş yapar ve ana sayfanın açıldığını bekler.
 export async function girisYap(page: Page, rol: Rol): Promise<void> {
   await formuGonder(page, rol, parola());

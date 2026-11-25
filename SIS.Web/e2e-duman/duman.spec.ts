@@ -19,7 +19,11 @@ test('öğrenci girişi öğrenci menülerini gösterir, yönetim menüsünü g�
 test('yanlış parolayla giriş hata iletisi gösterir ve giriş sayfasında kalır', async ({ page }) => {
   const yanit = page.waitForResponse((r) => r.request().method() === 'POST' && new URL(r.url()).pathname === '/api/auth/login');
   await formuGonder(page, 'DANISMAN', `Yanlis1!${randomBytes(8).toString('hex')}`);
-  expect((await yanit).status()).toBe(401);
+  const cevap = await yanit;
+  // Sunucu boş parolaya da aynı 401'i verir; giden istekte parola alanı dolu olmalı (değer iletiye yazılmaz).
+  const gonderilen = (cevap.request().postDataJSON() as { password?: unknown }).password;
+  expect(typeof gonderilen === 'string' && gonderilen.length > 0, 'giriş isteğinde parola alanı dolu').toBe(true);
+  expect(cevap.status()).toBe(401);
   await expect(page.getByRole('alert').filter({ hasText: METIN.yanlisParolaIletisi })).toBeVisible();
   await expect(page).toHaveURL(/\/login$/);
 });
@@ -50,7 +54,7 @@ test('öğrenci transkript sayfasını açar', async ({ page }) => {
   await page.goto('/report/transkript');
   expect((await yanit).status()).toBe(200);
   await expect(page.getByRole('heading', { name: METIN.transkript, level: 1 })).toBeVisible();
-  await expect(page.getByRole('row', { name: /Öğrenci No \d+/ })).toBeVisible();
+  await expect(page.getByRole('row', { name: METIN.ogrenciNoSatiri })).toBeVisible();
   // Aktif dönemin harf notları yayımlanmadığı için ders listesi bugün boş.
   await expect(page.getByText(METIN.transkriptBos)).toBeVisible();
 });
@@ -62,7 +66,12 @@ test('öğrenci ders kayıt sayfasını açar', async ({ page }) => {
   expect((await yanit).status()).toBe(200);
   await expect(ustBaslik(page)).toHaveText(METIN.dersKayit);
   await expect(page.getByRole('heading', { name: METIN.mufredatDersleri, level: 3 })).toBeVisible();
-  await expect(page.getByRole('row').filter({ has: page.getByRole('cell') }).first()).toBeVisible();
+  // "Müfredat Dersleri" başlığını ve tabloyu birlikte içeren en içteki kapsayıcı.
+  const mufredat = page.locator('div')
+    .filter({ has: page.getByRole('heading', { name: METIN.mufredatDersleri, level: 3 }) })
+    .filter({ has: page.getByRole('table') })
+    .last();
+  await expect(mufredat.getByRole('row').filter({ has: page.getByRole('cell') }).first()).toBeVisible();
 });
 
 test('öğrenci not listesi sayfasını açar', async ({ page }) => {
