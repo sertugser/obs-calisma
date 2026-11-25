@@ -21,7 +21,7 @@ WITH tek_rollu AS (
   ORDER BY t.rol, t.id
 )
 UPDATE "AspNetUsers" u
-SET "PasswordHash" = :'ozet', "AccessFailedCount" = 0, "LockoutEnd" = NULL
+SET "PasswordHash" = '@OZET@', "AccessFailedCount" = 0, "LockoutEnd" = NULL
 FROM aday a WHERE u."Id" = a.id
 RETURNING a.rol, u."Email";
 `;
@@ -49,19 +49,44 @@ function gerekli(ad: string): string {
   return deger;
 }
 
-export default function kurulum(): void {
+// SQL stdin'den gider; komut satırında ve hata iletisinde parola özeti ya da e-posta bulunmaz.
+function sqlCalistir(sql: string, gizli: string[]): string {
+  try {
+    return execFileSync(
+      'docker',
+      ['exec', '-i', gerekli('DUMAN_DB_KONTEYNER'), 'psql', '-U', 'postgres', '-d', 'sis', '-X', '-q', '-tA',
+        '-F', '\t', '-v', 'ON_ERROR_STOP=1'],
+      { input: sql, encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] },
+    );
+  } catch (hata) {
+    const e = hata as { status?: number | null; stderr?: Buffer | string };
+    const satirlar = String(e.stderr ?? '')
+      .split('\n')
+      .filter((s) => s.trim() && !s.startsWith('LINE ') && !gizli.some((g) => g && s.includes(g)));
+    throw new Error(`Duman kurulumu: docker/psql başarısız (çıkış kodu ${e.status ?? 'yok'})\n${satirlar.slice(0, 5).join('\n')}`);
+  }
+}
+
+const tirnakla = (d: string): string => d.replace(/'/g, "''");
+
+export default function kurulum(): () => void {
   gerekli('DUMAN_ADRES');
-  const ozet = parolaOzeti(gerekli('DUMAN_PAROLA'));
-  const cikti = execFileSync(
-    'docker',
-    ['exec', '-i', gerekli('DUMAN_DB_KONTEYNER'), 'psql', '-U', 'postgres', '-d', 'sis', '-X', '-q', '-tA',
-      '-F', '\t', '-v', 'ON_ERROR_STOP=1', '-v', `ozet=${ozet}`],
-    { input: SECIM, encoding: 'utf8' },
-  );
+  const parola = gerekli('DUMAN_PAROLA');
+  const ozet = parolaOzeti(parola);
+  const cikti = sqlCalistir(SECIM.replace('@OZET@', ozet), [ozet, parola]);
   const satirlar = cikti.trim().split('\n').map((s) => s.split('\t'));
+  const epostalar: string[] = [];
   for (const [rol, anahtar] of Object.entries(ANAHTAR)) {
     const satir = satirlar.find(([r]) => r === rol);
     if (!satir) throw new Error(`Duman kurulumu: ${rol} rolünde ön koşulu sağlayan hesap yok`);
     process.env[`DUMAN_EPOSTA_${anahtar}`] = satir[1];
+    epostalar.push(satir[1]);
   }
+  // Koşu sonu: seçilen hesapların parolası hiçbir yere yazılmayan rastgele bir değerle değişir;
+  // -AcikBirak ile bırakılan veritabanında koşunun parolası geçersiz kalır.
+  return () => {
+    const yeni = parolaOzeti(randomBytes(24).toString('hex'));
+    const liste = epostalar.map((e) => `'${tirnakla(e)}'`).join(', ');
+    sqlCalistir(`UPDATE "AspNetUsers" SET "PasswordHash" = '${yeni}' WHERE "Email" IN (${liste});`, [yeni, parola, ...epostalar]);
+  };
 }
