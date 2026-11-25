@@ -1,0 +1,148 @@
+name: E2E Smoke
+
+# Tarayıcıdan giriş ve ana ekranlar için küçük duman takımı (SIS.Web/e2e-duman). Zorunlu kontrol değildir.
+# Development seed'i boş veritabanında koşar; parolalar ve anahtarlar iş içinde rastgele üretilir.
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: e2e-smoke-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  e2e-smoke:
+    name: E2E Smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      ASPNETCORE_ENVIRONMENT: Development
+      ASPNETCORE_URLS: http://127.0.0.1:5213
+      Cors__AllowedOrigins__0: http://127.0.0.1:5173
+      Jwt__Issuer: sis-duman
+      Jwt__Audience: sis-duman
+      Jwt__ExpiresInMinutes: '60'
+      Logging__Console__FormatterName: simple
+      Logging__Console__FormatterOptions__SingleLine: 'true'
+      DUMAN_ADRES: http://127.0.0.1:5173
+      DUMAN_DB_KONTEYNER: obs-duman-db
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Rastgele parola ve anahtarlar
+        run: |
+          for ad in DB_PAROLA JWT_ANAHTAR DUMAN_PAROLA; do
+            deger="Aa1!$(openssl rand -hex 24)"
+            echo "::add-mask::$deger"
+            echo "$ad=$deger" >> "$GITHUB_ENV"
+          done
+
+      - name: PostgreSQL
+        # Etiket SIS.Tests.Postgres/PostgresFixture.cs'teki imajla aynı.
+        run: |
+          docker run -d --name obs-duman-db -p 127.0.0.1:5432:5432 --tmpfs /var/lib/postgresql \
+            -e POSTGRES_PASSWORD="$DB_PAROLA" -e POSTGRES_DB=sis postgres:18.7-trixie
+          echo "ConnectionStrings__DefaultConnection=Host=127.0.0.1;Port=5432;Database=sis;Username=postgres;Password=$DB_PAROLA" >> "$GITHUB_ENV"
+          echo "Jwt__Key=$JWT_ANAHTAR" >> "$GITHUB_ENV"
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+          dotnet-quality: 'preview'
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj') }}
+          restore-keys: nuget-${{ runner.os }}-
+
+      - name: API derlemesi
+        run: |
+          dotnet tool restore
+          dotnet build SIS.API/SIS.API.csproj --configuration Release
+
+      - name: Migration
+        run: |
+          timeout 60 bash -c 'until docker exec obs-duman-db pg_isready -U postgres -d sis; do sleep 2; done'
+          dotnet ef database update -p SIS.Infrastructure -s SIS.API --no-build --configuration Release
+
+      - name: API'yi başlat (seed arka planda)
+        working-directory: SIS.API
+        run: |
+          nohup dotnet run --configuration Release --no-build --no-launch-profile > "$RUNNER_TEMP/api.log" 2>&1 &
+          echo $! > "$RUNNER_TEMP/api.pid"
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: SIS.Web/package-lock.json
+
+      - name: Arayüz bağımlılıkları ve tarayıcı
+        working-directory: SIS.Web
+        run: |
+          npm ci
+          npx playwright install --with-deps --only-shell chromium
+
+      - name: Arayüz derlemesi ve sunumu
+        working-directory: SIS.Web
+        run: |
+          npm run build
+          nohup npx vite preview --host 127.0.0.1 --port 5173 --strictPort > "$RUNNER_TEMP/web.log" 2>&1 &
+          timeout 60 bash -c 'until curl -sf -o /dev/null http://127.0.0.1:5173/login; do sleep 2; done'
+
+      - name: API hazır olana kadar bekle (seed)
+        run: |
+          timeout 900 bash -c 'until curl -sf -o /dev/null http://127.0.0.1:5213/api/auth/login-settings; do
+            kill -0 "$(cat "$RUNNER_TEMP/api.pid")" 2>/dev/null || { echo "::error::API süreci durdu"; exit 1; }
+            sleep 5
+          done'
+
+      - name: Duman testleri
+        working-directory: SIS.Web
+        run: npx playwright test -c playwright.duman.config.ts
+
+      - name: Raporda gizli değer taraması
+        if: failure()
+        working-directory: SIS.Web
+        run: |
+          desen=(-e "$DUMAN_PAROLA" -e "$DB_PAROLA" -e "$JWT_ANAHTAR")
+          silinen=0
+          if [ -f playwright-report/index.html ]; then
+            sed -n 's/.*data:application\/zip;base64,\([A-Za-z0-9+/=]*\).*/\1/p' playwright-report/index.html | base64 -d > "$RUNNER_TEMP/rapor.zip"
+            if ! unzip -tq "$RUNNER_TEMP/rapor.zip" > /dev/null 2>&1 || unzip -p "$RUNNER_TEMP/rapor.zip" | grep -qF "${desen[@]}"; then
+              rm -f playwright-report/index.html
+              silinen=$((silinen + 1))
+            fi
+          fi
+          while IFS= read -r -d '' dosya; do
+            rm -f "$dosya"
+            silinen=$((silinen + 1))
+          done < <(grep -rlZF "${desen[@]}" playwright-report test-results 2> /dev/null)
+          echo "Gizli değer taraması: $silinen dosya yüklenmeden silindi."
+
+      - name: Rapor
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-duman-raporu
+          path: |
+            SIS.Web/playwright-report/
+            SIS.Web/test-results/
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: API günlüğü (uyarı ve hata satırları)
+        if: failure()
+        run: |
+          awk '/^(warn|fail|crit):/ && !/@/ && tolower($0) !~ /password=|host=|connectionstring/' "$RUNNER_TEMP/api.log" | tail -n 80
