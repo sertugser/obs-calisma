@@ -41,10 +41,6 @@ const alanaYaz = (alan: Locator, deger: string) =>
     el.dispatchEvent(new Event('input', { bubbles: true }));
   }, deger);
 
-// Form adımlarının zaman aşımları (ms). Deneme tıklamasında parola henüz alanda değildir, 10 sn yük altında da yeter;
-// gerçek tıklama parola alandayken yapıldığı için kısa tutulur.
-export const ZAMAN = { denemeTiklama: 10_000, tiklama: 3_000 } as const;
-
 // Sayfadaki metin alanlarını BEKLEMEDEN boşaltır: alan yoksa (sayfa gezindi) hemen döner;
 // sayfa kapanmış ya da gezinmişse hata yutulur.
 const alanlariBosalt = (page: Page): Promise<void> =>
@@ -70,12 +66,13 @@ export async function formuGonder(page: Page, rol: Rol, sifre: string): Promise<
   await expect(dugme).toBeVisible();
   await expect(eposta).toBeVisible();
   await expect(sifreAlani).toBeVisible();
-  // Deneme tıklaması: düğme tıklanabilir değilse (örtülü, devre dışı) parola henüz alanda değildir.
-  await dugme.click({ trial: true, timeout: ZAMAN.denemeTiklama });
+  // Deneme tıklaması, örtülü ya da devre dışı düğmeyi parola alana konmadan ÖNCE yakalar.
+  // Açık zaman aşımı yok: parola alandayken kısa zaman aşımı yük altında kararsızlık yaratır.
+  await dugme.click({ trial: true });
   try {
     await alanaYaz(eposta, ortam(`DUMAN_EPOSTA_${rol}`));
     await alanaYaz(sifreAlani, sifre);
-    await dugme.click({ timeout: ZAMAN.tiklama });
+    await dugme.click();
   } finally {
     await alanlariBosalt(page);
   }
