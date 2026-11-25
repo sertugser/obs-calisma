@@ -41,23 +41,43 @@ const alanaYaz = (alan: Locator, deger: string) =>
     el.dispatchEvent(new Event('input', { bubbles: true }));
   }, deger);
 
+// Form adımlarının zaman aşımları (ms). Deneme tıklamasında parola henüz alanda değildir, 10 sn yük altında da yeter;
+// gerçek tıklama parola alandayken yapıldığı için kısa tutulur.
+export const ZAMAN = { denemeTiklama: 10_000, tiklama: 3_000 } as const;
+
+// Sayfadaki metin alanlarını BEKLEMEDEN boşaltır: alan yoksa (sayfa gezindi) hemen döner;
+// sayfa kapanmış ya da gezinmişse hata yutulur.
+const alanlariBosalt = (page: Page): Promise<void> =>
+  page
+    .evaluate(() => {
+      const set = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
+      document.querySelectorAll('input').forEach((el) => {
+        if (el.type === 'checkbox' || el.type === 'radio' || el.type === 'hidden' || !el.value) return;
+        set?.call(el, '');
+        el.dispatchEvent(new Event('input', { bubbles: true }));
+      });
+    })
+    .catch(() => undefined);
+
 // Arayüzden giriş formunu doldurur ve gönderir; sonucu çağıran iddia eder.
-// Kırılan iddiaya Playwright sayfa dökümünü ekler; bu yüzden düğme görünür olmadan parola
-// alana konmaz ve basıştan hemen sonra alanlar boşaltılır.
+// Kırılan iddiaya Playwright sayfa dökümünü ekler; bu yüzden iki alan ve tıklanabilir düğme
+// doğrulanmadan hiçbir değer alana konmaz; koyduktan sonra hata da olsa alanlar önce boşaltılır, sonra hata atılır.
 export async function formuGonder(page: Page, rol: Rol, sifre: string): Promise<void> {
   await page.goto('/login');
   const eposta = page.getByLabel(METIN.epostaEtiketi);
   const sifreAlani = page.getByLabel(METIN.sifreEtiketi);
   const dugme = page.getByRole('button', { name: METIN.girisDugmesi, exact: true });
   await expect(dugme).toBeVisible();
-  await alanaYaz(eposta, ortam(`DUMAN_EPOSTA_${rol}`));
-  await alanaYaz(sifreAlani, sifre);
+  await expect(eposta).toBeVisible();
+  await expect(sifreAlani).toBeVisible();
+  // Deneme tıklaması: düğme tıklanabilir değilse (örtülü, devre dışı) parola henüz alanda değildir.
+  await dugme.click({ trial: true, timeout: ZAMAN.denemeTiklama });
   try {
-    await dugme.click();
+    await alanaYaz(eposta, ortam(`DUMAN_EPOSTA_${rol}`));
+    await alanaYaz(sifreAlani, sifre);
+    await dugme.click({ timeout: ZAMAN.tiklama });
   } finally {
-    // Gönderim yapıldı; sayfa gezinmişse alan zaten yoktur.
-    await alanaYaz(sifreAlani, '').catch(() => undefined);
-    await alanaYaz(eposta, '').catch(() => undefined);
+    await alanlariBosalt(page);
   }
 }
 // Doğru parolayla giriş yapar ve ana sayfanın açıldığını bekler.
