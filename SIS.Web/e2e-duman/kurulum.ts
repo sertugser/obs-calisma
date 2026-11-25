@@ -75,18 +75,25 @@ export default function kurulum(): () => void {
   const ozet = parolaOzeti(parola);
   const cikti = sqlCalistir(SECIM.replace('@OZET@', ozet), [ozet, parola]);
   const satirlar = cikti.trim().split('\n').map((s) => s.split('\t'));
-  const epostalar: string[] = [];
-  for (const [rol, anahtar] of Object.entries(ANAHTAR)) {
-    const satir = satirlar.find(([r]) => r === rol);
-    if (!satir) throw new Error(`Duman kurulumu: ${rol} rolünde ön koşulu sağlayan hesap yok`);
-    process.env[`DUMAN_EPOSTA_${anahtar}`] = satir[1];
-    epostalar.push(satir[1]);
-  }
-  // Koşu sonu: seçilen hesapların parolası hiçbir yere yazılmayan rastgele bir değerle değişir;
+  // Koşu sonu: yazılan hesapların parolası hiçbir yere yazılmayan rastgele bir değerle değişir;
   // -AcikBirak ile bırakılan veritabanında koşunun parolası geçersiz kalır.
-  return () => {
+  const epostalar = satirlar.map((s) => s[1]).filter((e): e is string => !!e);
+  const gecersizKil = (): void => {
+    if (epostalar.length === 0) return;
     const yeni = parolaOzeti(randomBytes(24).toString('hex'));
     const liste = epostalar.map((e) => `'${tirnakla(e)}'`).join(', ');
     sqlCalistir(`UPDATE "AspNetUsers" SET "PasswordHash" = '${yeni}' WHERE "Email" IN (${liste});`, [yeni, parola, ...epostalar]);
   };
+  // Özet yazıldıktan sonra kurulum kırılırsa koşu sonu işlevi kaydolmaz: özetleri hata atılmadan önce geçersiz kıl.
+  try {
+    for (const [rol, anahtar] of Object.entries(ANAHTAR)) {
+      const satir = satirlar.find(([r]) => r === rol);
+      if (!satir) throw new Error(`Duman kurulumu: ${rol} rolünde ön koşulu sağlayan hesap yok`);
+      process.env[`DUMAN_EPOSTA_${anahtar}`] = satir[1];
+    }
+  } catch (hata) {
+    gecersizKil();
+    throw hata;
+  }
+  return gecersizKil;
 }

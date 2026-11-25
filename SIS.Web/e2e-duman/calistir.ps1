@@ -31,11 +31,11 @@ function Show-ApiGunluk {
 function Wait-Adres([string]$url, [string]$konteyner, [int]$dakika) {
   $son = (Get-Date).AddMinutes($dakika)
   while ((Get-Date) -lt $son) {
-    if (-not (Test-Calisiyor $konteyner)) { throw "$konteyner durdu (son uyari ve hata satirlari asagida)" }
+    if (-not (Test-Calisiyor $konteyner)) { throw "$konteyner durdu (son uyari ve hata satirlari yukarida)" }
     try { if ((Invoke-WebRequest $url -UseBasicParsing -TimeoutSec 5).StatusCode -eq 200) { return } } catch { }
     Start-Sleep -Seconds 5
   }
-  throw "$url $dakika dakikada hazir olmadi (son uyari ve hata satirlari asagida)"
+  throw "$url $dakika dakikada hazir olmadi (son uyari ve hata satirlari yukarida)"
 }
 
 if (-not (Test-Calisiyor 'obs-duman-api')) {

@@ -18,6 +18,7 @@ test('öğrenci girişi öğrenci menülerini gösterir, yönetim menüsünü g�
 
 test('yanlış parolayla giriş hata iletisi gösterir ve giriş sayfasında kalır', async ({ page }) => {
   const yanit = page.waitForResponse((r) => r.request().method() === 'POST' && new URL(r.url()).pathname === '/api/auth/login');
+  yanit.catch(() => undefined); // yardımcı kırılırsa ikinci bir zaman aşımı hatası üretmesin
   await formuGonder(page, 'DANISMAN', `Yanlis1!${randomBytes(8).toString('hex')}`);
   const cevap = await yanit;
   // Sunucu boş parolaya da aynı 401'i verir; giden istekte parola alanı dolu olmalı (değer iletiye yazılmaz).
