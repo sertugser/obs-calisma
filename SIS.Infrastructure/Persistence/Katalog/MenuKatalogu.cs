@@ -123,7 +123,7 @@ public static class MenuKatalogu
             sonuclar.Add(await KatalogEsitleyici.EsitleAsync(db, new KatalogTuru<MenuModule, MenuModulKaydi>
             {
                 Ad = "menu-modulu",
-                // Üstü silinmiş (ya da yok) alt modül atlanır; anahtarı kaydedilmez, üstü dönerse eklenir.
+                // Üstü olmayan, henüz hiç yazılmamış alt modül atlanır; anahtarı kaydedilmez.
                 Kayitlar = katman.Where(m => m.UstSlug is null || modulKimlikleri.ContainsKey(m.UstSlug)).ToList(),
                 KayitAnahtari = m => m.Slug,
                 VarlikAnahtari = m => m.Slug,
@@ -146,7 +146,7 @@ public static class MenuKatalogu
         sonuclar.Add(await KatalogEsitleyici.EsitleAsync(db, new KatalogTuru<MenuItem, MenuOgesiKaydi>
         {
             Ad = "menu-ogesi",
-            // Modülü silinmiş öğe atlanır; anahtarı kaydedilmez.
+            // Modülü olmayan, henüz hiç yazılmamış öğe atlanır; anahtarı kaydedilmez.
             Kayitlar = Ogeler.Where(o => moduller.ContainsKey(o.ModulSlug)).ToList(),
             KayitAnahtari = o => o.Slug,
             VarlikAnahtari = i => i.Slug,
@@ -160,9 +160,11 @@ public static class MenuKatalogu
                 OpenInNewTab = o.YeniSekmede,
                 CreatedAt = an,
                 UpdatedAt = an,
+                // İzinsiz öğe kimseye görünmez ve sonradan onarılmaz; bu yüzden eksik izin kurulumu durdurur.
                 MenuItemPermissions = izinler.TryGetValue(o.IzinAnahtari, out var izinId)
                     ? [new MenuItemPermission { PermissionId = izinId }]
-                    : [],
+                    : throw new InvalidOperationException(
+                        $"Menü öğesi '{o.Slug}' için '{o.IzinAnahtari}' izni veritabanında yok."),
             },
         }, simdi, ct));
 

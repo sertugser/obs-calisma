@@ -41,6 +41,27 @@ public class MenuKataloguTests
         Assert.All(MenuKatalogu.Ogeler, o => Assert.Contains(o.ModulSlug, moduller));
     }
 
+    [Fact]
+    public async Task YoneticiAyniSluglaOgeEkleyemez()
+    {
+        await using var db = YeniContext();
+        await SistemKatalogu.EsitleAsync(db, Simdi);
+        await MenuKatalogu.EsitleAsync(db, Simdi);
+        var oge = MenuKatalogu.Ogeler[0];
+        var baskaModul = await db.MenuModules.FirstAsync(m => m.Slug != oge.ModulSlug && m.ParentId == null);
+
+        var hata = await Assert.ThrowsAsync<InvalidOperationException>(() => new SIS.Infrastructure.Services.MenuAdminService(db)
+            .CreateItemAsync(new SIS.Application.Identity.DTOs.CreateMenuItemDto
+            {
+                ModuleId = baskaModul.Id,
+                Label = "Kopya",
+                Route = "/kopya-sayfa",
+                Slug = oge.Slug,
+                PermissionKeys = [oge.IzinAnahtari],
+            }));
+        Assert.Contains(oge.Slug, hata.Message);
+    }
+
     private static async Task<List<string>> ModullerAsync(AppDbContext db)
     {
         var moduller = await db.MenuModules.ToListAsync();
