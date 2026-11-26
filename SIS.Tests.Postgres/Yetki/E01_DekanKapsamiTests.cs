@@ -8,7 +8,7 @@ using SIS.Tests.Postgres.DersProgrami;
 namespace SIS.Tests.Postgres.Yetki;
 
 // E-01, dekan kısmı: ders programı Excel önizlemesi dekan rolüyle. İstek, E01_ExcelIceAktarmaParametreTests'teki kabul testinin
-// biçiminde (fakülte ve dönem sorgu dizesinde); iki test arasındaki tek fark sorgudaki fakülte kimliği.
+// biçiminde (fakülte ve dönem form gövdesinde); testler arasındaki tek fark formdaki fakülte kimliği.
 [Collection(PostgresKoleksiyonu.Ad)]
 public sealed class E01_DekanKapsamiTests(PostgresFixture fixture, DersProgramiUygulamasi uygulama)
     : IClassFixture<DersProgramiUygulamasi>, IAsyncLifetime
@@ -24,9 +24,9 @@ public sealed class E01_DekanKapsamiTests(PostgresFixture fixture, DersProgramiU
     public async Task E01_DekanKendiFakultesindeOnizleme200Alir_SatirHazir_OturumKendiFakultesinde()
     {
         var (veri, _, istemci) = await KurAsync();
-        using var form = Form(veri);
+        using var form = Form(veri, veri.FakulteId);
 
-        var yanit = await istemci.PostAsync($"{Onizleme}?termId={veri.DonemId}&facultyId={veri.FakulteId}", form);
+        var yanit = await istemci.PostAsync(Onizleme, form);
 
         Assert.Equal(HttpStatusCode.OK, yanit.StatusCode);
         using var govde = JsonDocument.Parse(await yanit.Content.ReadAsStringAsync());
@@ -41,17 +41,33 @@ public sealed class E01_DekanKapsamiTests(PostgresFixture fixture, DersProgramiU
         Assert.Equal((oturum, veri.FakulteId, veri.DonemId, false), (o.Id, o.FacultyId, o.TermId, o.ConsumedAt.HasValue));
     }
 
-    // Karşı örnek: aynı dekan, aynı dosya ve dönem; sorguda başka bir fakültenin kimliği.
+    // Karşı örnek: aynı dekan, aynı dosya ve dönem; formda başka bir fakültenin kimliği.
     [Fact]
     public async Task E01_DekanBaskaFakultedeOnizleme403Alir_GovdeBos_OturumYazilmaz()
     {
         var (veri, baska, istemci) = await KurAsync();
-        using var form = Form(veri);
+        using var form = Form(veri, baska);
 
-        var yanit = await istemci.PostAsync($"{Onizleme}?termId={veri.DonemId}&facultyId={baska}", form);
+        var yanit = await istemci.PostAsync(Onizleme, form);
 
         Assert.Equal(HttpStatusCode.Forbidden, yanit.StatusCode);
         Assert.Equal(string.Empty, await yanit.Content.ReadAsStringAsync());
+        await using var db = fixture.YeniContext();
+        Assert.Equal(0, await db.ScheduleImportSessions.CountAsync());
+    }
+
+    // Karşı örnek: fakülte 0; eksik değer koruması kapsam denetiminden önce çalışır (403 değil 400).
+    [Fact]
+    public async Task E01_DekanFakulteSifir_400_OturumYazilmaz()
+    {
+        var (veri, _, istemci) = await KurAsync();
+        using var form = Form(veri, 0);
+
+        var yanit = await istemci.PostAsync(Onizleme, form);
+
+        Assert.Equal(HttpStatusCode.BadRequest, yanit.StatusCode);
+        using var govde = JsonDocument.Parse(await yanit.Content.ReadAsStringAsync());
+        Assert.Equal("Fakülte ve dönem gönderilmelidir.", govde.RootElement.GetProperty("error").GetString());
         await using var db = fixture.YeniContext();
         Assert.Equal(0, await db.ScheduleImportSessions.CountAsync());
     }
@@ -80,8 +96,8 @@ public sealed class E01_DekanKapsamiTests(PostgresFixture fixture, DersProgramiU
         return (veri, baska, await kurucu.IstemciAsync(Email));
     }
 
-    // Tek veri satırlı dosya (satır 2): ders, şube 1, Pazartesi Z1, derslik D1.
-    private static MultipartFormDataContent Form(DersProgramiVeriKurucu veri)
+    // Tek veri satırlı dosya (satır 2): ders, şube 1, Pazartesi Z1, derslik D1; form alanları verilen fakülte ve kurulan dönem.
+    private static MultipartFormDataContent Form(DersProgramiVeriKurucu veri, int fakulte)
     {
         using var kitap = new XLWorkbook();
         var sayfa = kitap.AddWorksheet("Program Verisi");
@@ -96,6 +112,11 @@ public sealed class E01_DekanKapsamiTests(PostgresFixture fixture, DersProgramiU
         kitap.SaveAs(akis);
         var dosya = new ByteArrayContent(akis.ToArray());
         dosya.Headers.ContentType = new MediaTypeHeaderValue("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
-        return new MultipartFormDataContent { { dosya, "file", "program.xlsx" } };
+        return new MultipartFormDataContent
+        {
+            { dosya, "file", "program.xlsx" },
+            { new StringContent(fakulte.ToString()), "facultyId" },
+            { new StringContent(veri.DonemId.ToString()), "termId" },
+        };
     }
 }
