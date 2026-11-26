@@ -1,4 +1,3 @@
-using Microsoft.EntityFrameworkCore;
 using SIS.Domain.Enums;
 using SIS.Domain.Identity;
 
@@ -415,37 +414,4 @@ public static class PermissionSeed
         // ─── menu.* (Phase 3 — Raporlarım son kullanıcı sayfası) ─
         ("menu.raporlarim.view",                         PermissionCategory.Menu, "Kullanıcının erişebildiği raporları listeleyen 'Raporlarım' sayfası"),
     };
-
-    /// <summary>
-    /// Merge seed. Mevcut Permissions tablosunda olmayan key'leri ekler; mevcutlara dokunmaz.
-    /// Sprint 5+ kapsamında controller migration sırasında yeni permission key'leri eklendikçe
-    /// her uygulama açılışında otomatik senkronize olur. Mevcut RolePermission ilişkileri korunur.
-    /// </summary>
-    public static async Task SeedAsync(AppDbContext context, CancellationToken ct = default)
-    {
-        var existingKeys = await context.Permissions
-            .Select(p => p.Key)
-            .ToListAsync(ct);
-        var existingSet = new HashSet<string>(existingKeys, StringComparer.Ordinal);
-
-        var missing = All
-            .Where(p => !existingSet.Contains(p.Key))
-            // Defansif dedup: All listesinde yanlışlıkla aynı Key iki kez yazılırsa
-            // (Permissions.Key UNIQUE olduğu için) taze DB seed'inde çökmemesi adına tekilleştir.
-            .GroupBy(p => p.Key, StringComparer.Ordinal)
-            .Select(g => g.First())
-            .Select(p => new Permission
-            {
-                Key = p.Key,
-                Category = p.Category,
-                Description = p.Description,
-                CreatedAt = DateTime.UtcNow,
-            })
-            .ToList();
-
-        if (missing.Count == 0) return;
-
-        context.Permissions.AddRange(missing);
-        await context.SaveChangesAsync(ct);
-    }
 }
