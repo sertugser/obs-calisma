@@ -1,5 +1,3 @@
-using Microsoft.AspNetCore.Identity;
-using Microsoft.EntityFrameworkCore;
 using SIS.Domain.Identity;
 
 namespace SIS.Infrastructure.Persistence.Seeds;
@@ -640,56 +638,4 @@ public static class RolePermissionSeed
             // verilmiştir (Karar #1 — Dean/DepartmentManager CRUD yapamaz). SysAdmin shortcut
             // sayesinde DB satırı gerekmiyor; diğer rollere bilinçli olarak eklenmemiştir.
         };
-
-    /// <summary>
-    /// Idempotent seed. RolePermissions tablosu boşsa <see cref="RoleDefaults"/>'taki tüm rol-permission
-    /// bağlantılarını ekler. Permission key bulunamazsa ya da rol bulunamazsa warning log + atla.
-    /// </summary>
-    public static async Task SeedAsync(
-        AppDbContext context,
-        RoleManager<IdentityRole<int>> roleManager,
-        CancellationToken ct = default)
-    {
-        if (await context.RolePermissions.AnyAsync(ct))
-        {
-            // Daha önce seed edildi. Admin UI replace-all semantiği ile yönetiyor;
-            // boot'ta merge etmek admin'in kasıtlı kaldırdığı satırları geri ekleyerek
-            // kararını ezerdi.
-            return;
-        }
-
-        // Permission key → entity lookup (drift detection için her satırda kontrol edilir).
-        var permissions = await context.Permissions.ToDictionaryAsync(p => p.Key, ct);
-        var rolePermissions = new List<RolePermission>();
-
-        foreach (var (roleName, permissionKeys) in RoleDefaults)
-        {
-            var role = await roleManager.FindByNameAsync(roleName);
-            if (role == null)
-            {
-                Console.WriteLine($"[RolePermissionSeed] WARNING: Role '{roleName}' bulunamadı, atlandı.");
-                continue;
-            }
-
-            foreach (var key in permissionKeys)
-            {
-                if (!permissions.TryGetValue(key, out var permission))
-                {
-                    Console.WriteLine($"[RolePermissionSeed] WARNING: Permission '{key}' bulunamadı (rol: {roleName}), atlandı.");
-                    continue;
-                }
-
-                rolePermissions.Add(new RolePermission
-                {
-                    RoleId = role.Id,
-                    PermissionId = permission.Id,
-                    GrantedAt = DateTime.UtcNow,
-                    GrantedByUserId = null, // seed → grant kaynağı yok
-                });
-            }
-        }
-
-        context.RolePermissions.AddRange(rolePermissions);
-        await context.SaveChangesAsync(ct);
-    }
 }

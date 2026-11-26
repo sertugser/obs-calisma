@@ -30,6 +30,11 @@ public sealed class KatalogTuru<TVarlik, TKayit> where TVarlik : class
 
     // Var olan varlıkta yalnız kataloğun alanlarını yazar; bir şey değiştiyse true döner.
     public Func<TVarlik, TKayit, bool> KatalogAlanlariniYaz { get; init; } = (_, _) => false;
+
+    // Tür daha önce hiç eşitlenmemişken tabloda satır varsa (katalogdan önce kurulmuş sistem) hiçbir şey
+    // eklenmez; bütün anahtarlar kayda alınır. Yöneticinin kaldırdığı ile hiç verilmemiş olan ayırt
+    // edilemediği için güvenli yön budur (eski seed de dolu tabloya dokunmuyordu).
+    public bool DoluTablodaIlkEsitlemedeEkleme { get; init; }
 }
 
 public sealed record KatalogSonucu(string Tur, int Eklenen, int Guncellenen, int Kaydedilen, int Atlanan);
@@ -51,6 +56,19 @@ public static class KatalogEsitleyici
             .ToHashSet(StringComparer.Ordinal);
 
         int eklenen = 0, guncellenen = 0, kaydedilen = 0, atlanan = 0;
+        if (tur.DoluTablodaIlkEsitlemedeEkleme && kayitli.Count == 0 && varliklar.Count > 0)
+        {
+            foreach (var kayit in tur.Kayitlar)
+            {
+                var anahtar = tur.KayitAnahtari(kayit);
+                if (varliklar.TryGetValue(anahtar, out var varlik) && tur.KatalogAlanlariniYaz(varlik, kayit)) guncellenen++;
+                db.KatalogKayitlari.Add(new KatalogKaydi { Tur = tur.Ad, Anahtar = anahtar, IlkYazilma = simdi });
+                kaydedilen++;
+            }
+            await db.SaveChangesAsync(ct);
+            return new KatalogSonucu(tur.Ad, 0, guncellenen, kaydedilen, 0);
+        }
+
         foreach (var kayit in tur.Kayitlar)
         {
             var anahtar = tur.KayitAnahtari(kayit);
