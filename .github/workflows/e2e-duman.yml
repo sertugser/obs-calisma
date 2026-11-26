@@ -107,13 +107,18 @@ jobs:
           timeout 900 bash -c 'until curl -sf -o /dev/null http://127.0.0.1:5213/api/auth/login-settings; do
             kill -0 "$(cat "$RUNNER_TEMP/api.pid")" 2>/dev/null || { echo "::error::API süreci durdu"; exit 1; }
             sleep 5
-          done'
+          done' || {
+            kod=$?
+            [ "$kod" -ne 124 ] || echo "::error::API 900 saniyede hazır olmadı"
+            exit "$kod"
+          }
 
       - name: Duman testleri
         working-directory: SIS.Web
         run: npx playwright test -c playwright.duman.config.ts
 
       - name: Raporda gizli değer taraması
+        id: tarama
         if: failure()
         working-directory: SIS.Web
         run: |
@@ -133,7 +138,7 @@ jobs:
           echo "Gizli değer taraması: $silinen dosya yüklenmeden silindi."
 
       - name: Rapor
-        if: failure()
+        if: failure() && steps.tarama.outcome == 'success'
         uses: actions/upload-artifact@v4
         with:
           name: e2e-duman-raporu
