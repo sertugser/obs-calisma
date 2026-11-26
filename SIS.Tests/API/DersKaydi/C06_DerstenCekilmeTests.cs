@@ -3,16 +3,20 @@ using Microsoft.EntityFrameworkCore;
 using SIS.Application.CourseRegistration.DTOs;
 using SIS.Domain.Entities;
 using SIS.Domain.Enums;
+using SIS.Infrastructure.Services;
+using SIS.Tests.TestDoubles;
 
 namespace SIS.Tests.API.DersKaydi;
 
 // C-06: dersten çekilme (WithdrawCourseAsync) kolları, bugünkü davranış. Ortam ayar sağlayıcısı vermez:
 // azami çekilme sayıları (6 / 3) üretim varsayılanlarıdır ve testte yalnız gözlenen sınır olarak geçer.
 // Her ret testi aynı kurulumda yalnız ölçülen koşulu düzeltip çekilmenin kabul edildiğini de gösterir.
+// Kurum saat dilimi açıkça verilir (Europe/Istanbul, +03:00): çekilme son günü yerel gün sonunda kapanır.
 public class C06_DerstenCekilmeTests
 {
     private static Task<RegistrationResponseDto> Cek(DersKaydiOrtami o, CourseRegistration k) =>
-        o.Kayit().WithdrawCourseAsync(o.Ogrenci.Id, k.Id);
+        new CourseRegistrationService(o.Db, o.Dogrulama(), o.Saat, institutionTimeZone: new SabitKurumSaatDilimi("Europe/Istanbul"))
+            .WithdrawCourseAsync(o.Ogrenci.Id, k.Id);
 
     private static string TekRet(RegistrationResponseDto y)
     {
@@ -60,12 +64,15 @@ public class C06_DerstenCekilmeTests
         Assert.Equal(RegistrationStatus.Active, o.Db.CourseRegistrations.Single(r => r.Id == b.Id).Status);
     }
 
-    // Kol 1: çekilme penceresi (TermStart ≤ an ≤ WithdrawalDeadline, uçlar dahil). Karşı örnek: saat pencereye alınınca kabul.
+    // Kol 1: çekilme penceresi (TermStart ≤ an < son günün yerel bitişi). Son gün 10 Mayıs, İstanbul'da
+    // 11 Mayıs 00:00 yerel = 10 Mayıs 21:00Z'de kapanır. Karşı örnek: saat pencereye alınınca kabul.
     [Theory]
     [InlineData("2025-02-14T23:59:59", false)]
     [InlineData("2025-02-15T00:00:00", true)]
     [InlineData("2025-05-10T00:00:00", true)]
-    [InlineData("2025-05-10T00:00:01", false)]
+    [InlineData("2025-05-10T00:00:01", true)]
+    [InlineData("2025-05-10T20:59:59", true)]
+    [InlineData("2025-05-10T21:00:00", false)]
     [InlineData("2025-05-11T12:00:00", false)]
     public async Task C06_Cekilme_PencereSinirlari_TermStatus(string an, bool kabul)
     {
