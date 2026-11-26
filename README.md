@@ -150,7 +150,7 @@ dotnet run --project SIS.API          # Backend'i başlat
 cd SIS.Web && npm run dev             # Frontend'i başlat
 ```
 
-CI'daki `Backend Coverage` işi her pull request'te koşar ve kapsam özetini iş özetine yazar; zorunlu kontrol değildir, eşik yoktur.
+CI'daki `Backend Coverage` işi yalnız main'e push'ta ve elle (workflow_dispatch) koşar, pull request'te koşmaz; kapsam özetini iş özetine yazar; zorunlu kontrol değildir, eşik yoktur.
 EF migration dosyaları kapsam hesabına girmez.
 
 ## Hata giderme
