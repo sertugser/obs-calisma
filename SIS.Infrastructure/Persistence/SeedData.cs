@@ -12,19 +12,21 @@ public static partial class SeedData
         UserManager<ApplicationUser> userManager,
         RoleManager<IdentityRole<int>> roleManager)
     {
+        await SeedSystemAsync(context, roleManager);
+        await SeedDemoAsync(context, userManager);
+    }
+
+    // Her kurulumda gereken sistem verisi. Örnek veriye bağlı değildir.
+    public static async Task SeedSystemAsync(
+        AppDbContext context,
+        RoleManager<IdentityRole<int>> roleManager)
+    {
         await SeedRolesAsync(roleManager);
-        await SeedAcademicStructureAsync(context);
-        await SeedCoursesAsync(context);
-        await SeedTermsAndClassroomsAsync(context);
         await new CalendarTemplateService(context).EnsureDefaultsAsync();
-        await SeedUsersAsync(context, userManager);
-        await SeedRegistrationsAsync(context);    // Geçmiş dönem transkript verileri (aktif döneme dokunmaz)
-        // SeedSectionSchedulesAsync devre dışı — schedule'lar scheduling sistemi tarafından oluşturulmalı
-        // SystemConfig önce seed edilmeli: TimeSlot generate'i Schedule.* anahtarlarını okuyor (özellikle FaceToFaceCutoffTime + WeekendOnlineOnly için AllowedMode damgalama)
+        // SystemConfig, zaman dilimlerinden önce yazılmalı: zaman dilimi üretimi Schedule.* anahtarlarını okuyor.
         await SeedSystemConfigAsync(context);
         await SeedWebModuleSettingsAsync(context);
         await SeedAnnouncementCategoriesAsync(context);
-        await SeedTimeSlotsAsync(context);
         await SeedConstraintDefinitionsAsync(context);
         await SeedEvaluationQuestionsAsync(context);
 
@@ -46,5 +48,19 @@ public static partial class SeedData
 
         // ── Rapor Motoru (Faz 1): handler'ı olan raporları idempotent ekle ──
         await ReportSeed.SeedAsync(context);
+    }
+
+    // Örnek (demo) veri: akademik yapı, kullanıcılar, dönemler, kayıtlar. Sistem verisinden sonra çalışır.
+    public static async Task SeedDemoAsync(
+        AppDbContext context,
+        UserManager<ApplicationUser> userManager)
+    {
+        await SeedAcademicStructureAsync(context);
+        await SeedCoursesAsync(context);
+        await SeedTermsAndClassroomsAsync(context);
+        await SeedUsersAsync(context, userManager);
+        await SeedRegistrationsAsync(context);    // Geçmiş dönem transkript verileri (aktif döneme dokunmaz)
+        // SeedSectionSchedulesAsync devre dışı — schedule'lar scheduling sistemi tarafından oluşturulmalı
+        await SeedTimeSlotsAsync(context);
     }
 }

@@ -44,7 +44,9 @@ using SIS.Infrastructure.Services.Announcement;
 using SIS.Infrastructure.Services.CalendarGenerator;
 using SIS.Infrastructure.Services.Integration;
 
-var builder = WebApplication.CreateBuilder(args);
+// `setup` komutu sunucuyu başlatmaz; aynı servislerle kurulum adımlarını çalıştırıp çıkar.
+var kurulumModu = SIS.Infrastructure.Persistence.Kurulum.KurulumSecenekleri.KurulumKomutuMu(args);
+var builder = WebApplication.CreateBuilder(kurulumModu ? [] : args);
 StartupSecurityValidator.Validate(builder.Configuration, builder.Environment);
 
 builder.Logging.ClearProviders();
@@ -347,6 +349,16 @@ builder.Services.Configure<AttachmentStorageOptions>(
 builder.Services.AddSingleton<IDateTimeProvider, SystemDateTimeProvider>();
 
 var app = builder.Build();
+
+if (kurulumModu)
+{
+    Environment.ExitCode = await SIS.Infrastructure.Persistence.Kurulum.KurulumCalistirici.CalistirAsync(
+        app.Services,
+        SIS.Infrastructure.Persistence.Kurulum.KurulumSecenekleri.Oku(args, Environment.GetEnvironmentVariable),
+        app.Logger);
+    await app.DisposeAsync(); // konsol günlükçüsü kuyruktaki iletileri çıkmadan önce yazsın
+    return;
+}
 
 app.UseMiddleware<SecurityHeadersMiddleware>();
 
