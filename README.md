@@ -80,6 +80,15 @@ Alternatif olarak `SIS.API/appsettings.Development.json` dosyasını oluşturabi
 dotnet ef database update -p SIS.Infrastructure -s SIS.API
 ```
 
+Ya da kurulum komutuyla: migration'ları uygular, sistem verisini (roller, izinler, menü, ayarlar) yazar ve ilk yöneticiyi oluşturur. Tekrar çalıştırılması güvenlidir; yönetici varsa dokunmaz.
+
+```bash
+cd SIS.API
+SIS_SETUP_ADMIN_EMAIL=yonetici@example.edu SIS_SETUP_ADMIN_PASSWORD='<güçlü parola>' dotnet run -- setup
+```
+
+Örnek veri de istenirse sona `--seed-demo` eklenir. Varsayılan yönetici parolası yoktur; parola değişkeni boşsa ve yönetici yoksa komut durur.
+
 ### 5. Backend'i başlat
 
 ```bash
