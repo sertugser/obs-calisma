@@ -49,6 +49,35 @@ public class KatalogEsitleyiciTests
 
         Assert.Equal(new KatalogSonucu("izin", 0, 0, 1, 0), sonuc);
         Assert.Equal(1, await db.Permissions.CountAsync());
+        var kayit = await db.KatalogKayitlari.SingleAsync();
+        Assert.Equal(("izin", "a.view", Simdi), (kayit.Tur, kayit.Anahtar, kayit.IlkYazilma));
+    }
+
+    [Fact]
+    public async Task KategoriDegismisse_GeriYazilir_BaskaTurunKaydiSayilmaz()
+    {
+        await using var db = YeniContext();
+        db.Permissions.Add(new Permission { Key = "a.view", Category = PermissionCategory.Menu, Description = "A" });
+        db.KatalogKayitlari.Add(new KatalogKaydi { Tur = "rol", Anahtar = "a.view", IlkYazilma = Simdi });
+        await db.SaveChangesAsync();
+
+        var sonuc = await KatalogEsitleyici.EsitleAsync(db, Tur(("a.view", PermissionCategory.System, "A")), Simdi);
+
+        Assert.Equal(new KatalogSonucu("izin", 0, 1, 1, 0), sonuc);
+        Assert.Equal(PermissionCategory.System, (await db.Permissions.SingleAsync()).Category);
+    }
+
+    [Fact]
+    public async Task AnahtarBuyukKucukHarfeDuyarlidir()
+    {
+        await using var db = YeniContext();
+        db.Permissions.Add(new Permission { Key = "A.VIEW", Category = PermissionCategory.Menu, Description = "A" });
+        await db.SaveChangesAsync();
+
+        var sonuc = await KatalogEsitleyici.EsitleAsync(db, Tur(("a.view", PermissionCategory.Menu, "A")), Simdi);
+
+        Assert.Equal(1, sonuc.Eklenen);
+        Assert.Equal(2, await db.Permissions.CountAsync());
     }
 
     [Fact]

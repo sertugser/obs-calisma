@@ -72,12 +72,9 @@ public sealed class KatalogTests(PostgresFixture fixture) : IAsyncLifetime
         Assert.Equal(degisen.Description, (await kontrol.Permissions.SingleAsync(p => p.Key == degisen.Key)).Description);
     }
 
-    // Denetim günlüğü her yazımda büyüdüğü için karşılaştırmanın dışında.
     private async Task<SortedDictionary<string, long>> SatirSayilariAsync()
     {
         await using var baglanti = await fixture.BaglantiAcAsync();
-        var sayilar = await PostgresFixture.SatirSayilariAsync(baglanti);
-        sayilar.Remove("AuditLogs");
-        return new SortedDictionary<string, long>(sayilar);
+        return new SortedDictionary<string, long>(await PostgresFixture.SatirSayilariAsync(baglanti));
     }
 }

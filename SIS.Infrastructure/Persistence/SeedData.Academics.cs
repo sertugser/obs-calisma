@@ -1,4 +1,3 @@
-using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using SIS.Domain.Entities;
 using SIS.Domain.Enums;

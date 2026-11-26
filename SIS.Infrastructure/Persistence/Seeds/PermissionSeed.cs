@@ -1,4 +1,3 @@
-using Microsoft.EntityFrameworkCore;
 using SIS.Domain.Enums;
 using SIS.Domain.Identity;
 
