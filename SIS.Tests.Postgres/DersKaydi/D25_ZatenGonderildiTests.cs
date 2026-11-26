@@ -64,6 +64,28 @@ public sealed class D25_ZatenGonderildiTests(PostgresFixture fixture) : IAsyncLi
         Assert.Equal(new[] { (bekleyen, ogrenci, Bekliyor) }, await veri.KayitSatirlariAsync(subeB));
     }
 
+    // Her iki şubede de onay bekleyen kayıt varken ikisi birlikte gönderilir; her şube için ayrı hata döner, hiçbir şey değişmez.
+    [Fact]
+    public async Task D25_IkiSubedeDeGonderilmisKayit_IkisiDeZatenGonderildiIleReddedilir()
+    {
+        var (veri, subeA, ogrenci) = await KurAsync("DKY101");
+        var subeB = await veri.SubeEkleAsync(await veri.DersEkleAsync("DKY102"), kapasite: 2);
+        var kayitA = await veri.KayitEkleAsync(ogrenci, subeA, Bekliyor);
+        var kayitB = await veri.KayitEkleAsync(ogrenci, subeB, Bekliyor);
+        await veri.MevcutVerAsync(subeA, 1);
+        await veri.MevcutVerAsync(subeB, 1);
+
+        var sonuc = await GonderAsync(veri, ogrenci, subeA, subeB);
+
+        Assert.False(sonuc.Success);
+        Assert.Equal(2, sonuc.ValidationResult!.Errors.Count);
+        Assert.All(sonuc.ValidationResult.Errors, h => Assert.Equal("AlreadySubmitted", h.Rule));
+        Assert.Equal(new HashSet<int?> { subeA, subeB }, sonuc.ValidationResult.Errors.Select(h => (int?)h.CourseSectionId).ToHashSet());
+        Assert.Equal((1, 1), (await veri.MevcutAsync(subeA), await veri.MevcutAsync(subeB)));
+        Assert.Equal(new[] { (kayitA, ogrenci, Bekliyor) }, await veri.KayitSatirlariAsync(subeA));
+        Assert.Equal(new[] { (kayitB, ogrenci, Bekliyor) }, await veri.KayitSatirlariAsync(subeB));
+    }
+
     // Karşı örnek: aynı istek, B şubesindeki kayıt reddedilmiş; iki şube de gönderilir.
     [Fact]
     public async Task D25_KarsiOrnek_KarisikIstek_TaslakVeReddedilmis_IkisiDeGonderilir()

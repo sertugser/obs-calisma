@@ -16,6 +16,7 @@ public class D25_ZatenGonderildiSiniflandiriciTests
     // Karşı örnekler: aynı kod başka kısıtta, aynı kısıt adı başka kodda, iç hata yok.
     [Theory]
     [InlineData("23505", "IX_Baska_Dizin")]
+    [InlineData("23505", "IX_CourseRegistrations_CourseSectionId")]
     [InlineData("23503", Dizin)]
     [InlineData("23505", null)]
     public void D25_KarsiOrnek_BaskaKisitYaDaBaskaKod_Eslesmez(string kod, string? kisit) =>
