@@ -149,7 +149,8 @@ public class StudentTranscriptService : IStudentTranscriptService
             : (await _context.StudentGrades
                 .AsNoTracking()
                 .Include(grade => grade.GradeComponent)
-                .Where(grade => registrationIds.Contains(grade.CourseRegistrationId) && grade.Score != null)
+                // Bütünleme/mazeret puanı (MakeupScore) varsa Score'un yerine aynı ağırlıkla geçer; satır ikisinden biri doluysa sayılır.
+                .Where(grade => registrationIds.Contains(grade.CourseRegistrationId) && (grade.Score != null || grade.MakeupScore != null))
                 .ToListAsync(ct))
                 .GroupBy(grade => grade.CourseRegistrationId)
                 .ToDictionary(
@@ -174,7 +175,7 @@ public class StudentTranscriptService : IStudentTranscriptService
                                 var grade = componentGroup.First();
                                 return new
                                 {
-                                    Score = grade.Score!.Value,
+                                    Score = (grade.MakeupScore ?? grade.Score)!.Value,
                                     grade.GradeComponent.Weight
                                 };
                             })
