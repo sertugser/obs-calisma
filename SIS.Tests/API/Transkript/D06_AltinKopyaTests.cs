@@ -12,7 +12,6 @@ namespace SIS.Tests.API.Transkript;
 // - H2 (tekrarda W önceki CC'yi düşürüyor): 2023-2024 Spring ve 2024-2025 Fall dönemlerinin Cgpa ve Cumulative* satırları,
 //   CurrentCgpa, TotalEarned*, TotalGpa*, aynı dönemlerin Gecmis.Terms[..].Cgpa satırları, CalculateCgpa, YenidenHesap.Cgpa,
 //   YenidenHesap.TotalAkts, YenidenHesap.TotalPoints, Ogrenci.Cgpa.
-// - D-04 (bütünleme puanı okunmuyor): Transkript.Terms[2023-2024 Fall].Courses[FIZ101].AverageScore.
 public class D06_AltinKopyaTests
 {
     [Fact]
