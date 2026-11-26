@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using SIS.API.Controllers;
 using SIS.Application.Common.Services;
 using SIS.Domain.Entities;
@@ -89,12 +90,45 @@ public class B02_GecmeNotuTests
         Assert.Equal((2025, 37m), (dto.Year, dto.PassingGrade));
     }
 
+    // D37: alan gönderilmezse (null) 0 yazılmıyor; istek reddediliyor ve kayıt oluşmuyor.
+    [Fact]
+    public async Task B02_GecmeNotuNull_Olusturma400_KayitYok()
+    {
+        using var ortam = new NotHesabiOrtami();
+
+        var sonuc = await YonergeController(ortam).Create(Istek(null, ortam.Program.Id), default);
+
+        var hata = Assert.IsType<BadRequestObjectResult>(sonuc);
+        Assert.Equal("Geçme notu gönderilmelidir.", NotHesabiOrtami.Oku<string>(hata.Value!, "message"));
+        Assert.Empty(ortam.Db.ExamRegulations.AsNoTracking());
+    }
+
+    // D37: güncellemede alan null ise hiçbir alan yazılmıyor (ad da değişmiyor); karşı örnek: aynı istek 42 ile yazılıyor.
+    [Fact]
+    public async Task B02_GecmeNotuNull_Guncelleme400_Deger37Kalir()
+    {
+        using var ortam = new NotHesabiOrtami();
+        var controller = YonergeController(ortam);
+        var olusan = (ExamRegulationDto)((OkObjectResult)await controller.Create(Istek(37m, ortam.Program.Id), default)).Value!;
+
+        var sonuc = await controller.Update(olusan.Id, Istek(null, ortam.Program.Id, "Yeni Ad"), default);
+
+        var hata = Assert.IsType<BadRequestObjectResult>(sonuc);
+        Assert.Equal("Geçme notu gönderilmelidir.", NotHesabiOrtami.Oku<string>(hata.Value!, "message"));
+        var kalici = ortam.Db.ExamRegulations.AsNoTracking().Single();
+        Assert.Equal((37m, "Deneme Yönergesi"), (kalici.PassingGrade, kalici.Name));
+
+        Assert.IsType<OkObjectResult>(await controller.Update(olusan.Id, Istek(42m, ortam.Program.Id, "Yeni Ad"), default));
+        kalici = ortam.Db.ExamRegulations.AsNoTracking().Single();
+        Assert.Equal((42m, "Yeni Ad"), (kalici.PassingGrade, kalici.Name));
+    }
+
     private static ExamRegulationController YonergeController(NotHesabiOrtami ortam) =>
         new(ortam.Db, new NullSystemConfigProvider()) { ControllerContext = NotHesabiOrtami.KullaniciBaglami(1) };
 
-    private static SaveExamRegulationRequest Istek(decimal gecmeNotu, int programId) => new(
+    private static SaveExamRegulationRequest Istek(decimal? gecmeNotu, int programId, string ad = "Deneme Yönergesi") => new(
         ProgramId: programId, DegreeLevel: DegreeLevel.Bachelor, TermType: TermType.Fall, Year: 2024,
-        IsActive: true, Name: "Deneme Yönergesi", MidtermCount: 1, FinalCount: 1,
+        IsActive: true, Name: ad, MidtermCount: 1, FinalCount: 1,
         MinMidtermWeightPercent: 40, MaxMidtermWeightPercent: 60, MinFinalWeightPercent: 40, MaxFinalWeightPercent: 60,
         PassingGrade: gecmeNotu, RawScoreFloor1: 0, RawScoreFloor2: 0, FinalExamFloor: 0);
 }
