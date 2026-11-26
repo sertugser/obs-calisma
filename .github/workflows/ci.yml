@@ -44,7 +44,6 @@ jobs:
 
   backend-coverage:
     name: Backend Coverage
-    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     timeout-minutes: 40
 
@@ -71,7 +70,23 @@ jobs:
         run: dotnet build --no-restore --configuration Release --warnaserror
 
       - name: Run tests with coverage
-        run: dotnet test --no-build --configuration Release --verbosity normal --collect:"XPlat Code Coverage"
+        run: dotnet test --no-build --configuration Release --verbosity normal --collect:"XPlat Code Coverage" -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.ExcludeByFile="**/Migrations/**/*.cs"
+
+      - name: Coverage summary
+        run: |
+          files=$(find . -name coverage.cobertura.xml -path '*/TestResults/*' | sort)
+          if [ -z "$files" ]; then echo "Kapsam dosyası bulunamadı" >&2; exit 1; fi
+          attr() { grep -o -m1 "$2=\"[^\"]*\"" "$1" | head -1 | cut -d'"' -f2; }
+          pct() { awk -v r="$1" 'BEGIN { printf "%.1f", r * 100 }'; }
+          {
+            echo "## Backend kapsam özeti"
+            for f in $files; do
+              echo "### $f"
+              echo "- Satır: %$(pct "$(attr "$f" line-rate)") ($(attr "$f" lines-covered) / $(attr "$f" lines-valid) satır)"
+              echo "- Dal: %$(pct "$(attr "$f" branch-rate)") ($(attr "$f" branches-covered) / $(attr "$f" branches-valid) dal)"
+              grep -o '<package name="[^"]*" line-rate="[^"]*"' "$f" | awk -F'"' '{ printf "- %s: %%%.1f\n", $2, $4 * 100 }'
+            done
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload coverage
         uses: actions/upload-artifact@v4
