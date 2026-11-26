@@ -155,7 +155,7 @@ public record CreateProgramDto(
     int DepartmentId,
     string DegreeLevel,
     string EducationType,
-    int MaxStudyDurationSemesters,
+    int? MaxStudyDurationSemesters,
     int TotalRequiredEcts
 );
 public record UpdateProgramDto(
@@ -164,6 +164,6 @@ public record UpdateProgramDto(
     int DepartmentId,
     string DegreeLevel,
     string EducationType,
-    int MaxStudyDurationSemesters,
+    int? MaxStudyDurationSemesters,
     int TotalRequiredEcts
 );

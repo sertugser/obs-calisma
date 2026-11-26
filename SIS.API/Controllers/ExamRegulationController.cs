@@ -214,6 +214,7 @@ public class ExamRegulationController(AppDbContext context, ISystemConfigProvide
             if (min < 0 || max > 100) return $"{label} 0-100 arasında olmalıdır.";
             if (min > max) return $"{label}: en az değer en çok değeri aşamaz.";
         }
+        if (req.PassingGrade is null) return "Geçme notu gönderilmelidir.";
         if (req.PassingGrade < 0 || req.PassingGrade > 100) return "Geçme notu 0-100 arasında olmalıdır.";
         foreach (var (value, label) in new[]
                  {
@@ -248,7 +249,7 @@ public class ExamRegulationController(AppDbContext context, ISystemConfigProvide
         e.MaxMidtermWeightPercent = req.MaxMidtermWeightPercent;
         e.MinFinalWeightPercent = req.MinFinalWeightPercent;
         e.MaxFinalWeightPercent = req.MaxFinalWeightPercent;
-        e.PassingGrade = req.PassingGrade;
+        e.PassingGrade = req.PassingGrade ?? throw new InvalidOperationException("Geçme notu doğrulanmadan yazılamaz.");
         e.RawScoreFloor1 = req.RawScoreFloor1;
         e.RawScoreFloor2 = req.RawScoreFloor2;
         e.FinalExamFloor = req.FinalExamFloor;
@@ -324,7 +325,7 @@ public record SaveExamRegulationRequest(
     bool IsActive, string Name, int MidtermCount, int FinalCount,
     decimal MinMidtermWeightPercent, decimal MaxMidtermWeightPercent,
     decimal MinFinalWeightPercent, decimal MaxFinalWeightPercent,
-    decimal PassingGrade, decimal RawScoreFloor1, decimal RawScoreFloor2, decimal FinalExamFloor,
+    decimal? PassingGrade, decimal RawScoreFloor1, decimal RawScoreFloor2, decimal FinalExamFloor,
     int AAMin = 91, int BAMin = 81, int BBMin = 71, int CBMin = 61,
     int CCMin = 55, int DCMin = 50, int DDMin = 45, bool LetterRangesEditable = true,
     GradeCode BelowFloorGrade = GradeCode.FF,
