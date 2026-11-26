@@ -40,6 +40,9 @@ public class AdminAcademicStructureService(
         return normalized;
     }
 
+    private static int RequireMaxStudyDuration(int? value) =>
+        value ?? throw new InvalidOperationException("Azami öğrenim süresi gönderilmelidir.");
+
     private static string? NormalizeOptionalCode(string? value)
     {
         if (string.IsNullOrWhiteSpace(value))
@@ -554,6 +557,7 @@ public class AdminAcademicStructureService(
         var programName = NormalizeRequiredText(dto.Name, "Program adı");
         var programCode = NormalizeCode(dto.Code, "Program kodu");
         var externalSystemCode = NormalizeOptionalCode(dto.ExternalSystemCode);
+        var maxStudyDuration = RequireMaxStudyDuration(dto.MaxStudyDurationSemesters);
 
         if (!await db.Departments.AnyAsync(d => d.Id == dto.DepartmentId))
             throw new KeyNotFoundException("Bölüm bulunamadı.");
@@ -571,7 +575,7 @@ public class AdminAcademicStructureService(
             DepartmentId = dto.DepartmentId,
             DegreeLevel = Enum.Parse<DegreeLevel>(dto.DegreeLevel),
             EducationType = Enum.Parse<EducationType>(dto.EducationType),
-            MaxStudyDurationSemesters = dto.MaxStudyDurationSemesters,
+            MaxStudyDurationSemesters = maxStudyDuration,
             TotalRequiredEcts = dto.TotalRequiredEcts,
             CreatedAt = DateTime.UtcNow
         };
@@ -601,6 +605,7 @@ public class AdminAcademicStructureService(
         var programName = NormalizeRequiredText(dto.Name, "Program adı");
         var programCode = NormalizeCode(dto.Code, "Program kodu");
         var externalSystemCode = NormalizeOptionalCode(dto.ExternalSystemCode);
+        var maxStudyDuration = RequireMaxStudyDuration(dto.MaxStudyDurationSemesters);
 
         var program = await db.AcademicPrograms.Include(p => p.Department).FirstOrDefaultAsync(p => p.Id == id)
             ?? throw new KeyNotFoundException("Program bulunamadı.");
@@ -623,7 +628,7 @@ public class AdminAcademicStructureService(
         program.DepartmentId = dto.DepartmentId;
         program.DegreeLevel = Enum.Parse<DegreeLevel>(dto.DegreeLevel);
         program.EducationType = Enum.Parse<EducationType>(dto.EducationType);
-        program.MaxStudyDurationSemesters = dto.MaxStudyDurationSemesters;
+        program.MaxStudyDurationSemesters = maxStudyDuration;
         program.TotalRequiredEcts = dto.TotalRequiredEcts;
         program.UpdatedAt = DateTime.UtcNow;
         await db.SaveChangesAsync();
