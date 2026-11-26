@@ -255,7 +255,7 @@ public partial class CourseRegistrationService
 
         // Guard: dönem WithdrawalPeriod aşamasında olmalı
         var withdrawTerm = registration.CourseSection.Term;
-        if (!await IsManualOpenModeAsync(withdrawalControlCode) && !withdrawTerm.IsWithdrawalOpen(_clock.UtcNow))
+        if (!await IsManualOpenModeAsync(withdrawalControlCode) && !withdrawTerm.IsWithdrawalOpen(_clock.UtcNow, await _institutionTimeZone.GetAsync()))
         {
             response.Success = false;
             response.ValidationResult = new ValidationResultDto
@@ -305,7 +305,7 @@ public partial class CourseRegistrationService
         }
 
         // FR-57: Check withdrawal deadline
-        if (!await IsManualOpenModeAsync(withdrawalControlCode) && !term.IsWithdrawalOpen(_clock.UtcNow))
+        if (!await IsManualOpenModeAsync(withdrawalControlCode) && !term.IsWithdrawalOpen(_clock.UtcNow, await _institutionTimeZone.GetAsync()))
         {
             errors.Add(new ValidationError
             {

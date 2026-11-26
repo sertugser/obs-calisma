@@ -1,4 +1,5 @@
 using SIS.Domain.Enums;
+using SIS.Domain.ValueObjects;
 
 namespace SIS.Domain.Entities;
 
@@ -75,9 +76,11 @@ public class AcademicTerm
         IsActive(now) && AcademicCalendar is { } cal &&
         (cal.AddDropOverride ?? (now >= cal.AddDropStart && now <= cal.AddDropEnd));
 
-    public bool IsWithdrawalOpen(DateTime now) =>
-        IsActive(now) && AcademicCalendar is { } cal &&
-        (cal.WithdrawalOverride ?? (now >= TermStart && now <= cal.WithdrawalDeadline));
+    // Son gün (WithdrawalDeadline, takvim günü) kurumun yerel gününün sonuna kadar açıktır.
+    public bool IsWithdrawalOpen(DateTime nowUtc, TimeZoneInfo institutionTimeZone) =>
+        IsActive(nowUtc) && AcademicCalendar is { } cal &&
+        (cal.WithdrawalOverride ?? (nowUtc >= TermStart
+            && nowUtc < CalendarDayBoundary.EndUtc(cal.WithdrawalDeadline, institutionTimeZone)));
 
     public bool IsGradeEntryOpen(DateTime now) =>
         IsActive(now) && AcademicCalendar is { } cal &&

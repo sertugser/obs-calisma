@@ -131,9 +131,9 @@ public class AcademicTermPhaseTests
     public void IsWithdrawalOpen_UsesTermStartAndWithdrawalDeadline()
     {
         var term = BuildTerm();
-        term.IsWithdrawalOpen(term.TermStart.AddDays(1)).Should().BeTrue();
-        term.IsWithdrawalOpen(term.AcademicCalendar!.WithdrawalDeadline.AddDays(1)).Should().BeFalse();
-        term.IsWithdrawalOpen(term.TermStart.AddDays(-1)).Should().BeFalse();
+        term.IsWithdrawalOpen(term.TermStart.AddDays(1), TimeZoneInfo.Utc).Should().BeTrue();
+        term.IsWithdrawalOpen(term.AcademicCalendar!.WithdrawalDeadline.AddDays(1), TimeZoneInfo.Utc).Should().BeFalse();
+        term.IsWithdrawalOpen(term.TermStart.AddDays(-1), TimeZoneInfo.Utc).Should().BeFalse();
     }
 
     [Fact]

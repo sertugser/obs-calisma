@@ -5,6 +5,7 @@ using SIS.Application.Common.Time;
 using SIS.Domain.Entities;
 using SIS.Domain.Enums;
 using SIS.Infrastructure.Persistence;
+using SIS.Infrastructure.Services.Time;
 
 namespace SIS.Infrastructure.Services;
 
@@ -18,16 +19,23 @@ public class WebModuleControlService : IWebModuleControlService
     private readonly AppDbContext _context;
     private readonly IWebModuleSettingsProvider _settingsProvider;
     private readonly IDateTimeProvider _clock;
+    private readonly IInstitutionTimeZoneProvider _institutionTimeZone;
 
     public WebModuleControlService(
         AppDbContext context,
         IWebModuleSettingsProvider settingsProvider,
-        IDateTimeProvider clock)
+        IDateTimeProvider clock,
+        IInstitutionTimeZoneProvider? institutionTimeZone = null)
     {
         _context = context;
         _settingsProvider = settingsProvider;
         _clock = clock;
+        _institutionTimeZone = institutionTimeZone ?? new InstitutionTimeZoneProvider(new NullSystemConfigProvider());
     }
+
+    // Kurum saat dilimi yalnız çekilme takvimi modunda okunur; geçersiz ayar öteki modülleri durdurmaz.
+    private Func<AcademicTerm, bool> WithdrawalOpenIn(TimeZoneInfo institutionTimeZone) =>
+        t => t.IsWithdrawalOpen(_clock.UtcNow, institutionTimeZone);
 
     public WebModuleControlDefinition? GetDefinition(string code)
         => Definitions.GetValueOrDefault(code);
@@ -166,7 +174,7 @@ public class WebModuleControlService : IWebModuleControlService
                 selectedOption,
                 announcement,
                 definition.Title,
-                t => t.IsWithdrawalOpen(_clock.UtcNow),
+                WithdrawalOpenIn(await _institutionTimeZone.GetAsync(ct)),
                 "Aktif akademik dönem bulunamadı.",
                 "Aktif dönemin akademik takvimi tanımlı olmadığı için dersten çekilme modülü açılamıyor.",
                 "Dersten çekilme süreci şu anda akademik takvimde açık değil."),

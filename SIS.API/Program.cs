@@ -305,6 +305,7 @@ builder.Services.AddScoped<ICalendarGeneratorService, CalendarGeneratorService>(
 builder.Services.AddScoped<IAdminAcademicStructureService, AdminAcademicStructureService>();
 builder.Services.AddScoped<IAdminCourseCatalogService, AdminCourseCatalogService>();
 builder.Services.AddScoped<ISystemConfigProvider, SystemConfigProvider>();
+builder.Services.AddScoped<IInstitutionTimeZoneProvider, InstitutionTimeZoneProvider>();
 builder.Services.AddScoped<IWebModuleSettingsProvider, WebModuleSettingsProvider>();
 builder.Services.AddScoped<IWebModuleControlService, WebModuleControlService>();
 
