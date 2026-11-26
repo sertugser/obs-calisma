@@ -1,4 +1,3 @@
-using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using SIS.Domain.Entities;
 using SIS.Domain.Enums;
@@ -7,22 +6,6 @@ namespace SIS.Infrastructure.Persistence;
 
 public static partial class SeedData
 {
-    private static async Task SeedRolesAsync(RoleManager<IdentityRole<int>> roleManager)
-    {
-        string[] roles = { "Student", "Instructor", "AcademicAdvisor",
-                           "AdministrativeStaff", "DepartmentManager", "Dean", "SystemAdministrator" };
-        foreach (var role in roles)
-        {
-            if (!await roleManager.RoleExistsAsync(role))
-            {
-                var result = await roleManager.CreateAsync(new IdentityRole<int> { Name = role });
-                if (!result.Succeeded)
-                    throw new InvalidOperationException(
-                        $"Failed to create role '{role}': {string.Join(", ", result.Errors.Select(e => e.Description))}");
-            }
-        }
-    }
-
     private static async Task SeedAcademicStructureAsync(AppDbContext context)
     {
         // Faculty

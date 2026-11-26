@@ -21,7 +21,8 @@ public static partial class SeedData
         AppDbContext context,
         RoleManager<IdentityRole<int>> roleManager)
     {
-        await SeedRolesAsync(roleManager);
+        // Roller ve izinler sistem kataloğundan (anahtarla, yalnız eksik olanı ekler).
+        await Katalog.SistemKatalogu.EsitleAsync(context, DateTime.UtcNow);
         await new CalendarTemplateService(context).EnsureDefaultsAsync();
         // SystemConfig, zaman dilimlerinden önce yazılmalı: zaman dilimi üretimi Schedule.* anahtarlarını okuyor.
         await SeedSystemConfigAsync(context);
@@ -37,8 +38,7 @@ public static partial class SeedData
         await DocumentTypeSeed.SeedAsync(context);
 
         // ── RBAC Phase 1 (Sprint 1.4) ──────────────────────────
-        // Sıra önemli: Permission → MenuStructure (perm lookup gerekli) → RolePermission (perm + rol lookup)
-        await PermissionSeed.SeedAsync(context);
+        // Sıra önemli: Permission (katalog, yukarıda) → MenuStructure (perm lookup gerekli) → RolePermission (perm + rol lookup)
         await MenuStructureSeed.SeedAsync(context);
         await RolePermissionSeed.SeedAsync(context, roleManager);
 

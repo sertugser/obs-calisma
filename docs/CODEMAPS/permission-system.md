@@ -181,7 +181,7 @@ Sprint 3'te 7 hardcoded role array silindi (-449 satır). Sadece type'lar + help
 
 | Seed | Dosya | Sayı | Notlar |
 |------|-------|------|--------|
-| `PermissionSeed` | [PermissionSeed.cs](../../SIS.Infrastructure/Persistence/Seeds/PermissionSeed.cs) | 239 key | Merge semantiği — eksik key'leri ekler, mevcuda dokunmaz (gelecek migration'lar için) |
+| `PermissionSeed` | [PermissionSeed.cs](../../SIS.Infrastructure/Persistence/Seeds/PermissionSeed.cs) | 255 key | Liste; yazma işi sistem kataloğunda (`Persistence/Katalog/SistemKatalogu.cs`): eksik key'i ekler, kategori ve açıklamayı katalogdaki değere çeker, silinmiş key'i geri getirmez |
 | `MenuStructureSeed` | [MenuStructureSeed.cs](../../SIS.Infrastructure/Persistence/Seeds/MenuStructureSeed.cs) | 13 modül + 75 item | Idempotent (AnyAsync check) |
 | `RolePermissionSeed` | [RolePermissionSeed.cs](../../SIS.Infrastructure/Persistence/Seeds/RolePermissionSeed.cs) | 6 rol × ortalama 60 key = 365 satır | SystemAdmin **YOK** (locked) |
 
@@ -230,11 +230,11 @@ Sprint 3'te 7 hardcoded role array silindi (-449 satır). Sadece type'lar + help
 - Eksik DB key (kritik) → PermissionSeed.All'a ekle, API restart
 - Orphan DB key (risksiz) → cleanup adayı
 
-### PermissionSeed Merge Semantiği
+### İzin kataloğu eşitlemesi
 
 Yeni permission key eklenince (controller'da `[RequirePermission("yeni.key")]`):
 1. PermissionSeed.cs'in `All` listesine ekle
-2. API restart → `SeedAsync` mevcut DB ile diff alır, sadece eksiği INSERT eder
+2. `setup` (ya da Development açılışı) → sistem kataloğu eksik key'i INSERT eder; var olanın kategori ve açıklamasını günceller; bir kez yazılmış ama silinmiş key'i geri getirmez
 3. Mevcut RolePermission ilişkileri korunur
 
 ### Cache Invalidation

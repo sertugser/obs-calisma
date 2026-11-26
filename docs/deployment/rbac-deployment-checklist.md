@@ -66,7 +66,7 @@ Beklenen: **5 satır** dönmeli.
 ### 2.3 Application restart
 
 API process'i restart edilir. İlk açılışta `SeedData.SeedAsync` orchestrator otomatik çağrılır → 3 RBAC seed sırayla çalışır:
-1. `PermissionSeed.SeedAsync` — merge semantiği (~239 key)
+1. Sistem kataloğu (`SistemKatalogu.EsitleAsync`) — roller ve izinler; eksik olanı ekler (~255 key)
 2. `MenuStructureSeed.SeedAsync` — idempotent (13 modül + 75 item)
 3. `RolePermissionSeed.SeedAsync` — idempotent (~365 satır, 6 rol)
 
