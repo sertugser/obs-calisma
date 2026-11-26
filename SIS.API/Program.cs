@@ -356,6 +356,7 @@ if (kurulumModu)
         app.Services,
         SIS.Infrastructure.Persistence.Kurulum.KurulumSecenekleri.Oku(args, Environment.GetEnvironmentVariable),
         app.Logger);
+    await app.DisposeAsync(); // konsol günlükçüsü kuyruktaki iletileri çıkmadan önce yazsın
     return;
 }
 

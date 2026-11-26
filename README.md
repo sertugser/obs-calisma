@@ -89,6 +89,9 @@ SIS_SETUP_ADMIN_EMAIL=yonetici@example.edu SIS_SETUP_ADMIN_PASSWORD='<güçlü p
 
 Örnek veri de istenirse sona `--seed-demo` eklenir. Varsayılan yönetici parolası yoktur; parola değişkeni boşsa ve yönetici yoksa komut durur.
 
+- Kurulum, sunucuyla aynı yapılandırmayı ister (bağlantı cümlesi, JWT ayarları, CORS, AllowedHosts); bunlar ortam değişkeniyle ya da `appsettings` ile verilir, komut satırı ayarları okunmaz.
+- `--seed-demo` bugün sabit parolalı örnek hesaplar (aşağıdaki tablo) da oluşturur; yalnız geliştirme veritabanında kullanılmalıdır.
+
 ### 5. Backend'i başlat
 
 ```bash

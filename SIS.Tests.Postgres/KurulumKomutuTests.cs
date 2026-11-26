@@ -50,10 +50,11 @@ public sealed class KurulumKomutuTests(PostgresFixture fixture) : IAsyncLifetime
 
         Assert.Equal(0, await KurAsync(uygulama, "yonetici@example.edu", RastgeleParola()));
         var ilk = await SatirSayilariAsync();
-        Assert.True(ilk["Permissions"] > 0);
-        Assert.True(ilk["MenuItems"] > 0);
-        Assert.True(ilk["RolePermissions"] > 0);
-        Assert.True(ilk["SystemConfigs"] > 0);
+        // Migration'ın kendi yazdığı satırlardan fazlası olmalı: sistem verisini kurulum yazdı.
+        foreach (var tablo in new[] { "Permissions", "SystemConfigs" })
+            Assert.True(ilk[tablo] > fixture.MigrationVerisi.GetValueOrDefault(tablo), tablo);
+        foreach (var tablo in new[] { "AspNetRoles", "MenuModules", "MenuItems", "RolePermissions", "WebModuleSettings", "PermissionBundles", "DocumentTypes" })
+            Assert.True(ilk[tablo] > 0, tablo);
 
         // Başka bir e-postayla ikinci kez: yönetici zaten var, yeni hesap açılmaz.
         Assert.Equal(0, await KurAsync(uygulama, "ikinci@example.edu", RastgeleParola()));

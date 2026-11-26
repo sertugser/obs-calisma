@@ -72,7 +72,8 @@ public static class KurulumCalistirici
         catch (Exception ex)
         {
             // İleti parola içermez: Identity hataları yalnız kural adlarını verir.
-            gunluk.LogError("Kurulum '{Adim}' adımında durdu: {Ileti}", adim, ex.Message);
+            gunluk.LogError("Kurulum '{Adim}' adımında durdu: {Ileti} ({Neden})",
+                adim, ex.Message, ex.GetBaseException().Message);
             return 1;
         }
     }
