@@ -45,16 +45,21 @@ public class SwaggerDocumentTests : IClassFixture<SwaggerDocumentTests.SwaggerHo
 
         var operation = Navigate(document.RootElement, "paths", ImportPreviewPath, "post");
 
-        var file = Navigate(operation, "requestBody", "content", "multipart/form-data", "schema", "properties", "file");
-        file.GetProperty("type").GetString().Should().Be("string");
-        file.GetProperty("format").GetString().Should().Be("binary");
+        var properties = Navigate(operation, "requestBody", "content", "multipart/form-data", "schema", "properties");
+        var file = Navigate(properties, "file");
+        Assert.Equal("string", file.GetProperty("type").GetString());
+        Assert.Equal("binary", file.GetProperty("format").GetString());
 
-        // termId ve facultyId sorgudan okunmaya devam eder; belgeye de sorgu parametresi olarak yansımalı.
-        var queryParameters = operation.GetProperty("parameters").EnumerateArray()
-            .Where(parameter => parameter.GetProperty("in").GetString() == "query")
-            .Select(parameter => parameter.GetProperty("name").GetString())
-            .ToList();
-        queryParameters.Should().BeEquivalentTo(["termId", "facultyId"]);
+        // termId ve facultyId form alanıdır (ön yüz sözleşmesi); sorgu parametresi olarak belgelenmez.
+        Assert.Equal(
+            new[] { "facultyId", "file", "termId" },
+            properties.EnumerateObject().Select(property => property.Name).Order(StringComparer.Ordinal).ToArray());
+        Assert.Equal("integer", Navigate(properties, "termId").GetProperty("type").GetString());
+        Assert.Equal("integer", Navigate(properties, "facultyId").GetProperty("type").GetString());
+        var queryParameters = operation.TryGetProperty("parameters", out var parameters)
+            ? parameters.EnumerateArray().Where(parameter => parameter.GetProperty("in").GetString() == "query").ToList()
+            : [];
+        Assert.Empty(queryParameters);
     }
 
     private JsonDocument ParseDocument()

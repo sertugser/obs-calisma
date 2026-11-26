@@ -19,34 +19,14 @@ public sealed class E01_ExcelIceAktarmaParametreTests(PostgresFixture fixture, D
 
     public Task DisposeAsync() => Task.CompletedTask;
 
-    // Bilinen hata E-01: fakülte ve dönem yalnız form alanında gelince önizleme 500 dönüyor ve oturum yazılmıyor.
+    // Ön yüz sözleşmesi: fakülte ve dönem form alanında gelir; satır hazırdır ve uygulama yazar.
     [Fact]
-    [Trait("Durum", "BilinenHata")]
-    public async Task E01_FakulteVeDonemFormGovdesinde_Onizleme500_OturumYazilmaz()
+    public async Task E01_FakulteVeDonemFormGovdesinde_SatirHazir_UygulamaYazar()
     {
         var (veri, sube, istemci) = await KurAsync();
-        using var form = Form(veri);
-        form.Add(new StringContent(veri.FakulteId.ToString()), "facultyId");
-        form.Add(new StringContent(veri.DonemId.ToString()), "termId");
+        using var form = Form(veri, veri.FakulteId.ToString(), veri.DonemId.ToString());
 
         var onizleme = await istemci.PostAsync(Onizleme, form);
-
-        Assert.Equal(HttpStatusCode.InternalServerError, onizleme.StatusCode);
-        using var govde = JsonDocument.Parse(await onizleme.Content.ReadAsStringAsync());
-        Assert.Equal("DbUpdateException", govde.RootElement.GetProperty("type").GetString());
-        await using (var db = fixture.YeniContext())
-            Assert.Equal(0, await db.ScheduleImportSessions.CountAsync());
-        Assert.Empty(await veri.ProgramAsync(sube));
-    }
-
-    // Karşı örnek: aynı değerler sorgu dizesinde gelince okunur; satır hazırdır ve uygulama yazar.
-    [Fact]
-    public async Task E01_FakulteVeDonemSorguDizesinde_SatirHazir_UygulamaYazar()
-    {
-        var (veri, sube, istemci) = await KurAsync();
-        using var form = Form(veri);
-
-        var onizleme = await istemci.PostAsync($"{Onizleme}?termId={veri.DonemId}&facultyId={veri.FakulteId}", form);
         Assert.Equal(HttpStatusCode.OK, onizleme.StatusCode);
         var (oturum, satirlar) = await SatirlarAsync(onizleme);
         Assert.Equal(new[] { ("Valid", "Hazır.") }, satirlar);
@@ -58,6 +38,87 @@ public sealed class E01_ExcelIceAktarmaParametreTests(PostgresFixture fixture, D
         Assert.Equal(1, govde.RootElement.GetProperty("appliedCount").GetInt32());
         Assert.Equal(new[] { ((int?)veri.D1Id, veri.Z1Id) }, await veri.ProgramAsync(sube));
         Assert.Equal((veri.FakulteId, veri.DonemId, true), await OturumAsync(oturum));
+    }
+
+    // Karşı örnek: aynı değerler yalnız sorgu dizesinde gelince okunmaz.
+    [Fact]
+    public async Task E01_FakulteVeDonemYalnizSorguDizesinde_400_OturumYazilmaz()
+    {
+        var (veri, sube, istemci) = await KurAsync();
+        using var form = Form(veri, null, null);
+
+        var onizleme = await istemci.PostAsync($"{Onizleme}?termId={veri.DonemId}&facultyId={veri.FakulteId}", form);
+
+        await RetAsync(onizleme, EksikIleti);
+        Assert.Empty(await veri.ProgramAsync(sube));
+    }
+
+    [Fact]
+    public async Task E01_FormAlanlariYok_400_OturumYazilmaz()
+    {
+        var (veri, _, istemci) = await KurAsync();
+        using var form = Form(veri, null, null);
+
+        await RetAsync(await istemci.PostAsync(Onizleme, form), EksikIleti);
+    }
+
+    // Sayı olmayan fakülte: model bağlama hatası, alan adıyla.
+    [Fact]
+    public async Task E01_FakulteSayiDegil_400_OturumYazilmaz()
+    {
+        var (veri, _, istemci) = await KurAsync();
+        using var form = Form(veri, "abc", veri.DonemId.ToString());
+
+        var yanit = await istemci.PostAsync(Onizleme, form);
+
+        Assert.Equal(HttpStatusCode.BadRequest, yanit.StatusCode);
+        using var govde = JsonDocument.Parse(await yanit.Content.ReadAsStringAsync());
+        var alanlar = govde.RootElement.GetProperty("errors").EnumerateObject().Select(a => a.Name).ToArray();
+        Assert.Equal(new[] { "facultyId" }, alanlar);
+        await OturumYokAsync();
+    }
+
+    [Fact]
+    public async Task E01_YoneticiVarOlmayanFakulte_400_OturumYazilmaz()
+    {
+        var (veri, _, istemci) = await KurAsync();
+        using var form = Form(veri, (await YokKimlikAsync()).ToString(), veri.DonemId.ToString());
+
+        await RetAsync(await istemci.PostAsync(Onizleme, form), "Fakülte bulunamadı.");
+    }
+
+    [Fact]
+    public async Task E01_YoneticiVarOlmayanDonem_400_OturumYazilmaz()
+    {
+        var (veri, _, istemci) = await KurAsync();
+        using var form = Form(veri, veri.FakulteId.ToString(), (await YokKimlikAsync()).ToString());
+
+        await RetAsync(await istemci.PostAsync(Onizleme, form), "Dönem bulunamadı.");
+    }
+
+    private const string EksikIleti = "Fakülte ve dönem gönderilmelidir.";
+
+    // 400, beklenen { error } iletisi ve yazılmamış oturum (yeni bir context'le).
+    private async Task RetAsync(HttpResponseMessage yanit, string ileti)
+    {
+        Assert.Equal(HttpStatusCode.BadRequest, yanit.StatusCode);
+        using var govde = JsonDocument.Parse(await yanit.Content.ReadAsStringAsync());
+        Assert.Equal(ileti, govde.RootElement.GetProperty("error").GetString());
+        await OturumYokAsync();
+    }
+
+    private async Task OturumYokAsync()
+    {
+        await using var db = fixture.YeniContext();
+        Assert.Equal(0, await db.ScheduleImportSessions.CountAsync());
+    }
+
+    // Hiçbir fakültenin ve dönemin kimliği olmayan bir kimlik.
+    private async Task<int> YokKimlikAsync()
+    {
+        await using var db = fixture.YeniContext();
+        var enBuyuk = Math.Max(await db.Faculties.MaxAsync(f => f.Id), await db.AcademicTerms.MaxAsync(t => t.Id));
+        return enBuyuk + 1000;
     }
 
     private async Task<(DersProgramiVeriKurucu, int, HttpClient)> KurAsync()
@@ -73,8 +134,8 @@ public sealed class E01_ExcelIceAktarmaParametreTests(PostgresFixture fixture, D
     private static object Istek(DersProgramiVeriKurucu veri, Guid oturum) =>
         new { facultyId = veri.FakulteId, termId = veri.DonemId, importSessionId = oturum, rowNumbers = new[] { 2 } };
 
-    // Tek veri satırlı dosya (satır 2): ders, şube 1, Pazartesi Z1, derslik D1.
-    private static MultipartFormDataContent Form(DersProgramiVeriKurucu veri)
+    // Tek veri satırlı dosya (satır 2): ders, şube 1, Pazartesi Z1, derslik D1; null olan form alanı eklenmez.
+    private static MultipartFormDataContent Form(DersProgramiVeriKurucu veri, string? fakulte, string? donem)
     {
         using var kitap = new XLWorkbook();
         var sayfa = kitap.AddWorksheet("Program Verisi");
@@ -89,7 +150,12 @@ public sealed class E01_ExcelIceAktarmaParametreTests(PostgresFixture fixture, D
         kitap.SaveAs(akis);
         var dosya = new ByteArrayContent(akis.ToArray());
         dosya.Headers.ContentType = new MediaTypeHeaderValue("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
-        return new MultipartFormDataContent { { dosya, "file", "program.xlsx" } };
+        var form = new MultipartFormDataContent { { dosya, "file", "program.xlsx" } };
+        if (fakulte is not null)
+            form.Add(new StringContent(fakulte), "facultyId");
+        if (donem is not null)
+            form.Add(new StringContent(donem), "termId");
+        return form;
     }
 
     private static async Task<(Guid, (string, string)[])> SatirlarAsync(HttpResponseMessage yanit)

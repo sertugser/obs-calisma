@@ -61,13 +61,16 @@ public class ScheduleExcelController : ControllerBase
     [RequirePermission("menu.ders-programi-olusturma.import")]
     [RequestSizeLimit(FileUploadValidation.MaxExcelImportBytes)]
     public async Task<ActionResult<ImportPreviewDto>> ImportPreview(
-        [FromQuery] int termId,
-        [FromQuery] int facultyId,
+        [FromForm] int termId,
+        [FromForm] int facultyId,
         IFormFile file,
         CancellationToken ct = default)
     {
         if (!TryGetUserId(out var userId))
             return Unauthorized();
+        // Kapsam denetiminden önce: eksik değer 0'a bağlanır ve yönetici için kapsam denetimi 0 ile de geçer.
+        if (termId <= 0 || facultyId <= 0)
+            return BadRequest(new { error = "Fakülte ve dönem gönderilmelidir." });
         if (!await _scopeGuard.CanAccessFacultyAsync(User, userId, facultyId, ct))
             return Forbid();
 

@@ -868,6 +868,12 @@ public class ExcelScheduleService : IExcelScheduleService
 
     public async Task<ImportPreviewDto> PreviewImportAsync(int userId, Stream fileStream, int termId, int facultyId, CancellationToken ct = default)
     {
+        // Oturum fakülte ve döneme yabancı anahtarla bağlı; var olmayan kimlik kayıtta hata verir.
+        if (!await _db.Faculties.AnyAsync(f => f.Id == facultyId, ct))
+            throw new ScheduleImportSessionInvalidException("Fakülte bulunamadı.");
+        if (!await _db.AcademicTerms.AnyAsync(t => t.Id == termId, ct))
+            throw new ScheduleImportSessionInvalidException("Dönem bulunamadı.");
+
         // Turkish day name → DayOfWeek (normalised: lowercase, no diacritics for resilience)
         var dayMap = new Dictionary<string, DayOfWeek>(StringComparer.OrdinalIgnoreCase)
         {
