@@ -69,7 +69,6 @@ SIS.Web/e2e/constraints-page.spec.ts	kurum-ankara-bilim	1
 SIS.Web/e2e/constraints-page.spec.ts	yapay-zeka	2
 SIS.Web/e2e/dual-channel-cleanup.spec.ts	kurum-ankara-bilim	2
 SIS.Web/e2e/faculty-definitions.spec.ts	kurum-ankara-bilim	1
-SIS.Web/e2e/presentation-audit.spec.ts	kurum-ankara-bilim	6
 SIS.Web/e2e/scheduling-editor-drag.spec.ts	kurum-ankara-bilim	1
 SIS.Web/index.html	kurum-ankara-bilim	1
 SIS.Web/index.html	kurum-bilim-universite	1
@@ -128,8 +127,6 @@ SIS.Web/src/pages/curriculum-management/CurriculumCoursesView.tsx	rakip-proliz	2
 SIS.Web/src/pages/term-program-transfer/components/TargetTermPanel.tsx	rakip-proliz	1
 SIS.Web/src/types/registration.ts	rakip-proliz	2
 docs/CODEMAPS/elective-pool-system.md	rakip-proliz	1
-docs/PRESENTATION-AUDIT-2026-05-20.md	kurum-ankara-bilim	3
-docs/PRESENTATION-AUDIT-2026-05-20.md	yapay-zeka	1
 scripts/2026-05-16-duplicate-courses-cleanup.sql	kurum-ankara-bilim	1
 scripts/2026-05-27-backfill-national-credit.sql	kurum-ankara-bilim	1
 scripts/2026-05-30-grade-component-publish-permission.sql	yapay-zeka	1
