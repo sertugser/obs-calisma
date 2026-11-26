@@ -4,7 +4,7 @@ using SIS.Infrastructure.Persistence;
 namespace SIS.Tests.Postgres;
 
 // Adım 3.4a: sistem ayarları, web modül ayarları ve kısıt tanımları katalog kuralıyla.
-// Yöneticinin değeri korunur, yöneticinin sildiği geri gelmez, kataloğun açıklaması geri yazılır.
+// Var olan satıra dokunulmaz (değer, açıklama, parametre, tarih); yöneticinin sildiği geri gelmez.
 [Collection(PostgresKoleksiyonu.Ad)]
 public sealed class AyarKataloguTests(PostgresFixture fixture) : IAsyncLifetime
 {
@@ -46,10 +46,9 @@ public sealed class AyarKataloguTests(PostgresFixture fixture) : IAsyncLifetime
     }
 
     [Fact]
-    public async Task YoneticininDegeriKorunur_SildigiGeriGelmez_AciklamaGeriYazilir()
+    public async Task VarOlanSatiraDokunulmaz_SildigiGeriGelmez()
     {
-        string degisenAyar, silinenAyar, aciklamasiBozulan, kisitKodu, webAnahtari;
-        string aciklama;
+        string degisenAyar, silinenAyar, aciklamasiBozulan, kisitKodu, silinenKisitKodu, webAnahtari;
         await using (var db = fixture.YeniContext())
         {
             var ayarlar = await db.SystemConfigs.OrderBy(c => c.Key).Take(3).ToListAsync();
@@ -58,17 +57,23 @@ public sealed class AyarKataloguTests(PostgresFixture fixture) : IAsyncLifetime
             silinenAyar = ayarlar[1].Key;
             db.SystemConfigs.Remove(ayarlar[1]);
             aciklamasiBozulan = ayarlar[2].Key;
-            aciklama = ayarlar[2].Description!;
             ayarlar[2].Description = "elle değişti";
 
             var kisit = await db.ConstraintDefinitions.OrderBy(d => d.Code).FirstAsync();
             kisitKodu = kisit.Code;
             kisit.IsEnabled = !kisit.IsEnabled;
             kisit.Weight = 9;
+            kisit.Parameters = "{\"Yonetici\": 1}";
+            kisit.Description = "elle değişti";
+            var silinenKisit = await db.ConstraintDefinitions.OrderBy(d => d.Code).Skip(1).FirstAsync();
+            silinenKisitKodu = silinenKisit.Code;
+            db.ConstraintDefinitions.Remove(silinenKisit);
 
             var web = await db.WebModuleSettings.OrderBy(s => s.Id).FirstAsync();
             webAnahtari = $"{web.ModuleKey}:{web.Key}";
             web.Value = "yonetici-degeri";
+            web.Description = "elle değişti";
+            web.EffectiveFrom = new DateTime(2026, 9, 1, 0, 0, 0, DateTimeKind.Utc);
             await db.SaveChangesAsync();
         }
         bool kisitAcik;
@@ -80,11 +85,12 @@ public sealed class AyarKataloguTests(PostgresFixture fixture) : IAsyncLifetime
         await using var kontrol = fixture.YeniContext();
         Assert.Equal("yonetici-degeri", (await kontrol.SystemConfigs.SingleAsync(c => c.Key == degisenAyar)).Value);
         Assert.False(await kontrol.SystemConfigs.AnyAsync(c => c.Key == silinenAyar));
-        Assert.Equal(aciklama, (await kontrol.SystemConfigs.SingleAsync(c => c.Key == aciklamasiBozulan)).Description);
+        Assert.Equal("elle değişti", (await kontrol.SystemConfigs.SingleAsync(c => c.Key == aciklamasiBozulan)).Description);
         var k = await kontrol.ConstraintDefinitions.SingleAsync(d => d.Code == kisitKodu);
-        Assert.Equal((kisitAcik, 9), (k.IsEnabled, k.Weight));
+        Assert.Equal((kisitAcik, 9, "{\"Yonetici\": 1}", "elle değişti"), (k.IsEnabled, k.Weight, k.Parameters, k.Description));
+        Assert.False(await kontrol.ConstraintDefinitions.AnyAsync(d => d.Code == silinenKisitKodu));
         var w = (await kontrol.WebModuleSettings.ToListAsync()).Single(s => $"{s.ModuleKey}:{s.Key}" == webAnahtari);
-        Assert.Equal("yonetici-degeri", w.Value);
+        Assert.Equal(("yonetici-degeri", "elle değişti", new DateTime(2026, 9, 1, 0, 0, 0, DateTimeKind.Utc)), (w.Value, w.Description, w.EffectiveFrom));
     }
 
     private async Task<SortedDictionary<string, long>> SatirSayilariAsync()

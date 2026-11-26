@@ -221,8 +221,9 @@ public static partial class SeedData
             .Where(config => !RemovedSystemConfigKeys.Contains(config.Key, StringComparer.OrdinalIgnoreCase))
             .ToList();
 
-        // Katalog kuralı: eksik anahtar eklenir; değer ve veri tipi yöneticinin (sistem ayarları ve kısıt
-        // ekranları) olduğu için yalnız kategori ve açıklama güncellenir; yöneticinin sildiği geri gelmez.
+        // Katalog kuralı: eksik anahtar eklenir, yöneticinin sildiği geri gelmez. Var olan satıra hiç
+        // dokunulmaz: değer ve veri tipi yöneticinin; kategori zamanlama yükleyicisinde süzgeç olarak
+        // kullanılıyor; açıklamaları migration'lar sonradan değiştirmiş. Kataloğun alanları Adım 3.4b'de.
         await Katalog.KatalogEsitleyici.EsitleAsync(context, new Katalog.KatalogTuru<SystemConfig, SystemConfig>
         {
             Ad = "sistem-ayari",
@@ -230,13 +231,6 @@ public static partial class SeedData
             KayitAnahtari = c => c.Key,
             VarlikAnahtari = c => c.Key,
             Olustur = (c, _) => c,
-            KatalogAlanlariniYaz = (v, c) =>
-            {
-                if (v.Category == c.Category && v.Description == c.Description) return false;
-                v.Category = c.Category;
-                v.Description = c.Description;
-                return true;
-            },
         }, DateTime.UtcNow);
     }
 }

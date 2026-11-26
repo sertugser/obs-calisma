@@ -569,8 +569,8 @@ public static partial class SeedData
             },
         };
 
-        // Katalog kuralı: değer ve geçerlilik tarihleri yöneticinin (web modül ayarları ekranı); katalog
-        // yalnız açıklama, kategori ve veri tipini günceller.
+        // Katalog kuralı: eksik anahtar eklenir, yöneticinin sildiği geri gelmez. Var olan satıra
+        // dokunulmaz (değer ve geçerlilik tarihleri yöneticinin); kataloğun alanları Adım 3.4b'de.
         await Katalog.KatalogEsitleyici.EsitleAsync(context, new Katalog.KatalogTuru<WebModuleSetting, WebModuleSetting>
         {
             Ad = "web-modul-ayari",
@@ -578,14 +578,6 @@ public static partial class SeedData
             KayitAnahtari = s => $"{s.ModuleKey}:{s.Key}",
             VarlikAnahtari = s => $"{s.ModuleKey}:{s.Key}",
             Olustur = (s, _) => s,
-            KatalogAlanlariniYaz = (v, s) =>
-            {
-                if (v.Description == s.Description && v.Category == s.Category && v.DataType == s.DataType) return false;
-                v.Description = s.Description;
-                v.Category = s.Category;
-                v.DataType = s.DataType;
-                return true;
-            },
         }, DateTime.UtcNow);
     }
 }

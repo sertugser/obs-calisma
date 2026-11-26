@@ -302,8 +302,9 @@ public static partial class SeedData
             },
         };
 
-        // Katalog kuralı: açma-kapama, ağırlık, parametreler, kategori ve sıra yöneticinin (kısıt ekranı);
-        // katalog yalnız ad ve açıklamayı günceller.
+        // Katalog kuralı: eksik kısıt eklenir, yöneticinin sildiği geri gelmez. Var olan satıra dokunulmaz
+        // (açma-kapama, ağırlık, parametreler, kategori yöneticinin; ad ve açıklamayı migration'lar
+        // değiştirmiş); kataloğun alanları Adım 3.4b'de.
         await Katalog.KatalogEsitleyici.EsitleAsync(context, new Katalog.KatalogTuru<ConstraintDefinition, ConstraintDefinition>
         {
             Ad = "kisit",
@@ -311,13 +312,6 @@ public static partial class SeedData
             KayitAnahtari = d => d.Code,
             VarlikAnahtari = d => d.Code,
             Olustur = (d, _) => d,
-            KatalogAlanlariniYaz = (v, d) =>
-            {
-                if (v.Name == d.Name && v.Description == d.Description) return false;
-                v.Name = d.Name;
-                v.Description = d.Description;
-                return true;
-            },
         }, DateTime.UtcNow);
     }
 }
