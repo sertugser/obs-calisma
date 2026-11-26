@@ -8,6 +8,7 @@ using SIS.Domain.Entities;
 using SIS.Domain.Enums;
 using SIS.Infrastructure.Persistence;
 using SIS.Infrastructure.Services;
+using SIS.Tests.TestDoubles;
 
 namespace SIS.Tests.Application;
 
@@ -213,7 +214,7 @@ public class CourseRegistrationManualOpenOverrideTests : IDisposable
     {
         var validationService = new RegistrationValidationService(_context, _clock);
         var settingsProvider = new WebModuleSettingsProvider(_context, _memoryCache, _clock);
-        var controlService = new WebModuleControlService(_context, settingsProvider, _clock);
+        var controlService = new WebModuleControlService(_context, settingsProvider, _clock, new SabitKurumSaatDilimi("Etc/UTC"));
         return new CourseRegistrationService(_context, validationService, _clock, webSettings: settingsProvider, webModuleControls: controlService);
     }
 

@@ -9,7 +9,6 @@ using SIS.Domain.Enums;
 using SIS.Domain.ValueObjects;
 using SIS.Infrastructure.Persistence;
 using SIS.Infrastructure.Services.CalendarGenerator;
-using SIS.Infrastructure.Services.Time;
 
 namespace SIS.Infrastructure.Services;
 
@@ -26,11 +25,11 @@ public class AcademicCalendarService : IAcademicCalendarService
     private readonly IDateTimeProvider _clock;
     private readonly IInstitutionTimeZoneProvider _institutionTimeZone;
 
-    public AcademicCalendarService(AppDbContext ctx, IDateTimeProvider clock, IInstitutionTimeZoneProvider? institutionTimeZone = null)
+    public AcademicCalendarService(AppDbContext ctx, IDateTimeProvider clock, IInstitutionTimeZoneProvider institutionTimeZone)
     {
         _ctx   = ctx;
         _clock = clock;
-        _institutionTimeZone = institutionTimeZone ?? new InstitutionTimeZoneProvider(new SIS.Application.Common.Services.NullSystemConfigProvider());
+        _institutionTimeZone = institutionTimeZone;
     }
 
     // ── Admin ─────────────────────────────────────────────────────────

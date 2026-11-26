@@ -7,7 +7,6 @@ public static class WebModuleControlModes
     public const string TermEventBased = "term-event-based";
     public const string AcademicCalendarRegistration = "academic-calendar-registration";
     public const string AcademicCalendarAddDrop = "academic-calendar-add-drop";
-    public const string AcademicCalendarWithdrawal = "academic-calendar-withdrawal";
     public const string GradeEntryPeriod = "grade-entry-period";
 }
 
