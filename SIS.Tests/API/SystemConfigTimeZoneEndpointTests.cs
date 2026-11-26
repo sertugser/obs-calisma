@@ -50,4 +50,17 @@ public sealed class SystemConfigTimeZoneEndpointTests
         Assert.IsType<OkObjectResult>(await Ice("Europe/Berlin"));
         Assert.Equal("Europe/Berlin", Kayitli());
     }
+
+    // Büyük-küçük harf ve baştaki/sondaki boşluk normal biçime çevrilir.
+    [Theory]
+    [InlineData("europe/istanbul")]
+    [InlineData("  Europe/Istanbul  ")]
+    public async Task AdNormalBicimdeSaklanir(string deger)
+    {
+        Assert.IsType<OkObjectResult>(await Put(deger));
+        Assert.Equal("Europe/Istanbul", Kayitli());
+        Assert.IsType<OkObjectResult>(await Ice("Etc/UTC"));
+        Assert.IsType<OkObjectResult>(await Ice(deger));
+        Assert.Equal("Europe/Istanbul", Kayitli());
+    }
 }
