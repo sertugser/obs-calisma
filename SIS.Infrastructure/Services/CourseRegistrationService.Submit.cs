@@ -142,6 +142,15 @@ public partial class CourseRegistrationService
                     || cr.Status == RegistrationStatus.Rejected)
                 .ToDictionary(cr => cr.CourseSectionId);
 
+            // Onay bekleyen ya da kesinleşmiş kayıt yeniden eklenemez (tekil dizin); bir şube bile böyleyse hiçbiri gönderilmez.
+            var alreadySubmitted = AlreadySubmittedResult(existingAny, missingSections);
+            if (alreadySubmitted is not null)
+            {
+                response.Success = false;
+                response.ValidationResult = alreadySubmitted;
+                return response;
+            }
+
             // === KRİTİK BÖLGE: Serializable transaction + ders başına fresh kapasite kontrolü + increment ===
             // Çift sayımı önler (B2), kapasite kontrolünü tüm kayıt noktalarında zorunlu hale getirir (B3).
             var useTransaction = _context.Database.ProviderName != "Microsoft.EntityFrameworkCore.InMemory";
@@ -211,6 +220,19 @@ public partial class CourseRegistrationService
                 }
                 await _context.SaveChangesAsync();
                 if (tx != null) await tx.CommitAsync();
+            }
+            catch (DbUpdateException ex) when (IsAlreadySubmittedConflict(ex))
+            {
+                // Ön denetimden sonra aynı öğrenci-şube kaydı başka bir işlemde kesinleşti: ön denetimle aynı ret.
+                if (tx != null) await tx.RollbackAsync();
+                var currentRegistrations = await _context.CourseRegistrations.AsNoTracking()
+                    .Where(cr => cr.StudentId == studentId && missingSectionIds.Contains(cr.CourseSectionId))
+                    .ToListAsync();
+                var raceResult = AlreadySubmittedResult(currentRegistrations, missingSections);
+                if (raceResult is null) throw;
+                response.Success = false;
+                response.ValidationResult = raceResult;
+                return response;
             }
             catch (Exception ex) when (SeatLedger.IsConcurrencyConflict(ex))
             {
@@ -301,4 +323,36 @@ public partial class CourseRegistrationService
         return response;
     }
 
+    /// <summary>
+    /// Öğrencinin onay bekleyen, etkin ya da tamamlanmış kaydı olan her talep edilen şube için bir AlreadySubmitted hatası;
+    /// böyle şube yoksa null.
+    /// </summary>
+    private static ValidationResultDto? AlreadySubmittedResult(
+        IEnumerable<Domain.Entities.CourseRegistration> existing, IEnumerable<Domain.Entities.CourseSection> sections)
+    {
+        var submittedSectionIds = existing
+            .Where(cr => cr.Status is RegistrationStatus.PendingAdvisorApproval
+                or RegistrationStatus.Active
+                or RegistrationStatus.Completed)
+            .Select(cr => cr.CourseSectionId)
+            .ToHashSet();
+        var errors = sections
+            .Where(section => submittedSectionIds.Contains(section.Id))
+            .Select(section => new ValidationError
+            {
+                Rule = "AlreadySubmitted",
+                Message = $"'{section.Course.Code} {section.Course.Name}' dersine kaydınız zaten gönderildi (onay bekliyor veya kesinleşti).",
+                CourseSectionId = section.Id
+            })
+            .ToList();
+        return errors.Count == 0 ? null : new ValidationResultDto { IsValid = false, Errors = errors };
+    }
+
+    /// <summary>Yalnız öğrenci-şube tekil dizininin ihlali (23505); başka kısıt ya da hata eşleşmez ve yayılır.</summary>
+    internal static bool IsAlreadySubmittedConflict(DbUpdateException ex) =>
+        ex.InnerException is Npgsql.PostgresException
+        {
+            SqlState: "23505",
+            ConstraintName: "IX_CourseRegistrations_StudentId_CourseSectionId"
+        };
 }
