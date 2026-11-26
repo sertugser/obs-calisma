@@ -1,10 +1,14 @@
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
+using SIS.Application.Common.Time;
 using SIS.Application.AcademicCalendar.DTOs;
 using SIS.Domain.Entities;
 using SIS.Domain.Enums;
 using SIS.Infrastructure.Persistence;
 using SIS.Infrastructure.Services;
+using SIS.Infrastructure.Services.Time;
+using SIS.Tests.TestDoubles;
 
 namespace SIS.Tests.Application;
 
@@ -17,10 +21,10 @@ public class AcademicCalendarServiceTests
             .UseInMemoryDatabase($"AcalTest-{Guid.NewGuid()}")
             .Options);
 
-    private static AcademicCalendarService CreateService(AppDbContext ctx, DateTime? now = null)
+    private static AcademicCalendarService CreateService(AppDbContext ctx, DateTime? now = null, IInstitutionTimeZoneProvider? timeZone = null)
     {
         var clock = new FakeClock { UtcNow = now ?? new DateTime(2025, 10, 1, 0, 0, 0, DateTimeKind.Utc) };
-        return new AcademicCalendarService(ctx, clock);
+        return new AcademicCalendarService(ctx, clock, timeZone ?? new SabitKurumSaatDilimi("Etc/UTC"));
     }
 
     private static AcademicTerm SeedTerm(AppDbContext ctx, bool cancelled = false)
@@ -92,6 +96,21 @@ public class AcademicCalendarServiceTests
         result.Should().NotBeNull();
         result.TermId.Should().Be(term.Id);
         ctx.TermAcademicCalendars.Count(c => c.TermId == term.Id).Should().Be(1);
+    }
+
+    // Bozuk kurum saat dilimi ayarı kayıttan önce hata verir: istek reddedilir, takvim yazılmaz.
+    [Fact]
+    public async Task UpsertAsync_Throws_AndSavesNothing_WhenInstitutionTimeZoneInvalid()
+    {
+        using var ctx = CreateContext();
+        var term = SeedTerm(ctx);
+        ctx.SystemConfigs.Add(new SystemConfig { Key = "Institution.TimeZone", Value = "Mars/Olympus", DataType = "string" });
+        ctx.SaveChanges();
+        var timeZone = new InstitutionTimeZoneProvider(new SystemConfigProvider(ctx, new MemoryCache(new MemoryCacheOptions())));
+
+        await FluentActions.Awaiting(() => CreateService(ctx, timeZone: timeZone).UpsertAsync(term.Id, ValidDto(term)))
+            .Should().ThrowAsync<InvalidOperationException>().WithMessage("*Kurum saat dilimi*");
+        ctx.TermAcademicCalendars.Count().Should().Be(0);
     }
 
     [Fact]
