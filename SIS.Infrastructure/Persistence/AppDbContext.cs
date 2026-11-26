@@ -124,9 +124,27 @@ public DbSet<GradingCriteria> GradingCriteria => Set<GradingCriteria>();
     public DbSet<ReportUserGroupMember> ReportUserGroupMembers => Set<ReportUserGroupMember>();
     public DbSet<ReportAccessGrant> ReportAccessGrants => Set<ReportAccessGrant>();
 
+    // ── Sistem kataloğu (Adım 3) ──
+    public DbSet<Katalog.KatalogKaydi> KatalogKayitlari => Set<Katalog.KatalogKaydi>();
+    public DbSet<Katalog.KatalogAdimi> KatalogAdimlari => Set<Katalog.KatalogAdimi>();
+
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder); // Identity tables
+
+        builder.Entity<Katalog.KatalogKaydi>(e =>
+        {
+            e.ToTable("KatalogKayitlari");
+            e.Property(k => k.Tur).HasMaxLength(50).IsRequired();
+            e.Property(k => k.Anahtar).HasMaxLength(200).IsRequired();
+            e.HasIndex(k => new { k.Tur, k.Anahtar }).IsUnique();
+        });
+        builder.Entity<Katalog.KatalogAdimi>(e =>
+        {
+            e.ToTable("KatalogAdimlari");
+            e.Property(a => a.Ad).HasMaxLength(200).IsRequired();
+            e.HasIndex(a => a.Ad).IsUnique();
+        });
 
         // ── Student ──────────────────────────────────────────────
         builder.Entity<Student>(e =>
