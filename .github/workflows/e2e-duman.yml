@@ -19,7 +19,8 @@ concurrency:
 jobs:
   e2e-smoke:
     name: E2E Smoke
-    runs-on: ubuntu-latest
+    # Playwright 1.60.0 ubuntu-latest'in çözüldüğü 26.04'ü desteklemiyor; Playwright yükseltilince ubuntu-latest'e dönülecek.
+    runs-on: ubuntu-24.04
     timeout-minutes: 25
     env:
       ASPNETCORE_ENVIRONMENT: Development
