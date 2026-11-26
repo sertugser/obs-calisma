@@ -13,23 +13,19 @@ public class InstitutionTimeZoneValidatorTests
         Assert.Equal((ad, ""), (tz.Id, hata));
     }
 
-    // Linux konteynerinde (tzdata 2026e) "Turkey Standard Time" bulunur ama HasIanaId false: IANA olmadığı için ret.
     [Theory]
     [InlineData(null, "boş")]
     [InlineData("", "boş")]
     [InlineData("   ", "boş")]
     [InlineData("Mars/Olympus", "bulunamadı")]
-    [InlineData("Turkey Standard Time", "IANA")]
     public void GecersizAd_NedeniyleReddedilir(string? ad, string neden)
     {
         Assert.False(InstitutionTimeZoneValidator.TryResolve(ad, out _, out var hata));
         Assert.Contains(neden, hata);
     }
 
+    // Windows adı her ortamda reddedilir; nedeni (bulunamadı ya da IANA değil) platformun saat dilimi verisine bağlıdır.
     [Fact]
-    public void WindowsAdi_KonteynerdeBulunur_AmaIanaDegildir()
-    {
-        Assert.True(TimeZoneInfo.TryFindSystemTimeZoneById("Turkey Standard Time", out var bulunan));
-        Assert.False(bulunan!.HasIanaId);
-    }
+    public void WindowsAdi_Reddedilir() =>
+        Assert.False(InstitutionTimeZoneValidator.TryResolve("Turkey Standard Time", out _, out _));
 }

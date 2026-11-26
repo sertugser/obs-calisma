@@ -50,6 +50,10 @@ public sealed class KurulumVeGirisTests(PostgresFixture fixture) : IAsyncLifetim
         Assert.Equal(HttpStatusCode.OK, menu.StatusCode);
         using var menuGovde = JsonDocument.Parse(await menu.Content.ReadAsStringAsync());
         Assert.True(menuGovde.RootElement.GetArrayLength() > 0);
+
+        // Demo tohumu kurum saat dilimini örnek kurumunkine çeker.
+        await using var db = fixture.YeniContext();
+        Assert.Equal("Europe/Istanbul", await db.SystemConfigs.Where(c => c.Key == "Institution.TimeZone").Select(c => c.Value).SingleAsync());
     }
 
     [Fact]

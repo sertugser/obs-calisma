@@ -89,6 +89,7 @@ public sealed class KurulumKomutuTests(PostgresFixture fixture) : IAsyncLifetime
         Assert.Equal(0, await db.Faculties.CountAsync());
         Assert.Equal(0, await db.Courses.CountAsync());
         Assert.Equal(0, await db.CourseRegistrations.CountAsync());
+        Assert.Equal("Etc/UTC", await db.SystemConfigs.Where(c => c.Key == "Institution.TimeZone").Select(c => c.Value).SingleAsync());
     }
 
     private static Task<int> KurAsync(SisUygulamasi uygulama, string eposta, string? parola) =>

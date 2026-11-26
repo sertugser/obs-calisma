@@ -32,6 +32,10 @@ public class CekilmeSonGunuSaatDilimiTests
     // 6 Eylül −04:00'te biter: 7 Eylül 00:00 yerel + 4 sa = 7 Eylül 04:00Z.
     [InlineData("America/Santiago", "2025-09-06", "2025-09-07T03:59:59Z", true)]
     [InlineData("America/Santiago", "2025-09-06", "2025-09-07T04:00:00Z", false)]
+    // Atlantic/Azores, kış saatine dönüş (26 Ekim 01:00Z, +00:00 → −01:00; zdump, tzdata 2026e): 26 Ekim 00:00 yerel iki kez
+    // yaşanır, ilki 00:00Z. Ofset gün sonundan alınmazsa belirsiz anın standart ofseti (−01:00) alınır, bitiş 01:00Z olur.
+    [InlineData("Atlantic/Azores", "2025-10-25", "2025-10-25T23:59:59Z", true)]
+    [InlineData("Atlantic/Azores", "2025-10-25", "2025-10-26T00:00:00Z", false)]
     public void SonGun_KurumunYerelGunuBitinceKapanir(string dilim, string sonGun, string an, bool acik) =>
         Assert.Equal(acik, Donem(sonGun: sonGun).IsWithdrawalOpen(Utc(an), TimeZoneInfo.FindSystemTimeZoneById(dilim)));
 
