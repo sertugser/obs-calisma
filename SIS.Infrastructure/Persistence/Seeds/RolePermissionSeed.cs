@@ -3,7 +3,8 @@ using SIS.Domain.Identity;
 namespace SIS.Infrastructure.Persistence.Seeds;
 
 /// <summary>
-/// RBAC Phase 1 — 6 default rol için RolePermission mapping'ini seed eder.
+/// RBAC Phase 1 — 6 default rolün varsayılan izin listesi. Yazma işi rol-izin kataloğunda
+/// (Persistence/Katalog/RolIzinKatalogu.cs): eksik atamayı ekler, kaldırılanı geri getirmez.
 ///
 /// Inventory: <c>docs/superpowers/plans/2026-04-25-rbac-default-seed.md</c> (Sprint 0.3 sign-off).
 ///
@@ -12,10 +13,9 @@ namespace SIS.Infrastructure.Persistence.Seeds;
 ///    <c>RequirePermissionAttribute</c> shortcut ile tüm permission'lara erişir.
 ///  - Her rol için sadece <see cref="RoleDefaults"/>'da listelenen permission key'ler verilir.
 ///  - <c>lookup.*</c> permission'ları DB'de yok — hardcoded shortcut ile her authenticated user'a açık.
-///  - Permission key bulunamazsa (typo / drift) warning log + atla.
-///  - Rol bulunamazsa warning log + atla.
+///  - Listede olup veritabanında olmayan rol ya da izin kurulumu durdurur.
 ///
-/// Beklenen toplam: <b>~462 RolePermission</b> satırı.
+/// Toplam: <b>432</b> atama.
 ///
 /// Çalıştırma sırası: <see cref="PermissionSeed"/> + IdentityRole seed ÖNCE çalışmalı.
 /// </summary>

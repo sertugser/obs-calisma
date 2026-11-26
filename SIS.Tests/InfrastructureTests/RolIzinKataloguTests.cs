@@ -94,4 +94,30 @@ public class RolIzinKataloguTests
 
         Assert.Equal(1, await db.RolePermissions.CountAsync(rp => rp.RoleId == rol.Id && rp.PermissionId == izin.Id));
     }
+
+    [Theory]
+    [InlineData(true)]   // aynı çift hem elle hem paketten
+    [InlineData(false)]  // aynı çift iki ayrı paketten
+    public async Task AyniCiftinBirdenCokSatiriVarsa_EsitlemeCokmez_YeniSatirYazilmaz(bool elleDeVar)
+    {
+        await using var db = await KurulmusContextAsync();
+        await RolIzinKatalogu.EsitleAsync(db, Simdi);
+        var ilk = RolIzinKatalogu.Kayitlar[0];
+        var rol = await db.Roles.SingleAsync(r => r.Name == ilk.Rol);
+        var izin = await db.Permissions.SingleAsync(p => p.Key == ilk.Izin);
+        if (!elleDeVar)
+            db.RolePermissions.RemoveRange(db.RolePermissions.Where(rp => rp.RoleId == rol.Id && rp.PermissionId == izin.Id));
+        var paketler = new[] { new PermissionBundle { Name = "P1" }, new PermissionBundle { Name = "P2" } };
+        db.PermissionBundles.AddRange(paketler);
+        await db.SaveChangesAsync();
+        foreach (var paket in elleDeVar ? paketler[..1] : paketler)
+            db.RolePermissions.Add(new RolePermission { RoleId = rol.Id, PermissionId = izin.Id, SourceBundleId = paket.Id, GrantedAt = Simdi });
+        await db.SaveChangesAsync();
+        var once = await db.RolePermissions.CountAsync();
+
+        var sonuc = await RolIzinKatalogu.EsitleAsync(db, Simdi);
+
+        Assert.Equal(0, sonuc.Eklenen);
+        Assert.Equal(once, await db.RolePermissions.CountAsync());
+    }
 }

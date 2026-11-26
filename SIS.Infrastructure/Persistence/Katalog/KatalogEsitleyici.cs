@@ -50,8 +50,11 @@ public static class KatalogEsitleyici
     {
         AnahtarlariDenetle(tur.Ad, tur.Kayitlar.Select(tur.KayitAnahtari));
 
+        // Bir anahtara birden çok satır düşebilir (ör. aynı rol-izin çifti hem elle hem paketten);
+        // anahtarın varlığı yeter, alanları yazılacak satır ilkidir.
         var varliklar = (await db.Set<TVarlik>().ToListAsync(ct))
-            .ToDictionary(tur.VarlikAnahtari, StringComparer.Ordinal);
+            .GroupBy(tur.VarlikAnahtari, StringComparer.Ordinal)
+            .ToDictionary(g => g.Key, g => g.First(), StringComparer.Ordinal);
         var kayitli = (await db.KatalogKayitlari.Where(k => k.Tur == tur.Ad).Select(k => k.Anahtar).ToListAsync(ct))
             .ToHashSet(StringComparer.Ordinal);
 

@@ -38,7 +38,9 @@ public static class RolIzinKatalogu
             Ad = "rol-izin",
             Kayitlar = Kayitlar,
             KayitAnahtari = k => Anahtar(k.Rol, k.Izin),
-            // Kaynağı ne olursa olsun (elle ya da paketten) aynı rol-izin çifti tek satırdır (tekil dizin).
+            // Kaynağı ne olursa olsun (elle ya da paketten) çift bir kez sayılır; aynı çiftin birden çok satırı
+            // olabilir (elle ve paketten, filtreli tekil dizinler). Yalnız paketten verilmiş çift de "var" sayılır:
+            // paket kaldırılınca katalog o çifti yeniden eklemez.
             VarlikAnahtari = rp => Anahtar(rolAdi.GetValueOrDefault(rp.RoleId, $"#{rp.RoleId}"), izinAnahtari.GetValueOrDefault(rp.PermissionId, $"#{rp.PermissionId}")),
             Olustur = (k, an) => new RolePermission
             {
