@@ -7,7 +7,7 @@ namespace SIS.Infrastructure.Persistence;
 
 public static partial class SeedData
 {
-    private static async Task SeedRegistrationsAsync(AppDbContext context)
+    private static async Task SeedRegistrationsAsync(AppDbContext context, DateTime bugun)
     {
         if (context.CourseRegistrations.Any()) return;
 
@@ -25,7 +25,7 @@ public static partial class SeedData
         var instructors = context.Instructors.ToList();
         var curricula = context.Curricula.Include(c => c.Program).ToList();
 
-        var now = DateTime.UtcNow;
+        var now = bugun;
         var pastTerms = terms.Where(t => !t.IsCancelled && !(t.TermStart <= now && t.TermEnd >= now))
             .OrderBy(t => t.Year).ThenBy(t => t.TermType).ToList();
 

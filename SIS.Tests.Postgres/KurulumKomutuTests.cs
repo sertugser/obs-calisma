@@ -6,6 +6,7 @@ using System.Text.Json;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
+using SIS.Domain.Enums;
 using Microsoft.Extensions.Logging.Abstractions;
 using SIS.Infrastructure.Persistence.Kurulum;
 
@@ -160,6 +161,37 @@ public sealed class KurulumKomutuTests(PostgresFixture fixture) : IAsyncLifetime
         Assert.Null(KurulumSecenekleri.Oku(["setup"], _ => null).Kurum);
         Assert.Throws<ArgumentException>(() => KurulumSecenekleri.Oku(["setup", "--kurum"], _ => null));
         Assert.Throws<ArgumentException>(() => KurulumSecenekleri.Oku(["setup", "--kurum", "--seed-demo"], _ => null));
+    }
+
+    [Fact]
+    public async Task OrnekVeri_DonemlerVerilenGuneGore_NotlarGecmisDonemlerde()
+    {
+        await using var uygulama = new SisUygulamasi(fixture.BaglantiCumlesi);
+        var gun = new DateTime(2026, 11, 26, 0, 0, 0, DateTimeKind.Utc);
+
+        Assert.Equal(0, await KurulumCalistirici.CalistirAsync(
+            uygulama.Services,
+            new KurulumSecenekleri(DemoVerisi: true, "yonetici@example.edu", RastgeleParola(), DemoTarihi: gun),
+            NullLogger.Instance));
+
+        await using var db = fixture.YeniContext();
+        var etkin = await db.AcademicTerms.Where(t => t.IsActivated).ToListAsync();
+        Assert.Equal((2026, TermType.Fall), (Assert.Single(etkin).Year, etkin[0].TermType));
+        // Güz 2022'den Güz 2026'ya dokuz dönem (gelecekteki Bahar 2027 yok); migration'ın yaz dönemi ayrıca durur.
+        Assert.Equal(9, await db.AcademicTerms.CountAsync(t => t.TermType != TermType.Summer));
+        Assert.False(await db.AcademicTerms.AnyAsync(t => t.TermStart > gun));
+        Assert.Equal(0, await db.AcademicTerms.CountAsync(t => t.TermType != TermType.Summer && t.AcademicCalendar == null));
+        // Madde 45: notlu kayıtlar geçmiş dönemlerde, etkin dönemde notlu kayıt yok.
+        Assert.True(await db.CourseRegistrations.AnyAsync(r => r.Grade != null));
+        Assert.False(await db.CourseRegistrations.AnyAsync(r => r.Grade != null && r.CourseSection.TermId == etkin[0].Id));
+
+        // Hoca ataması ve program: etkin dönemin her şubesinin hocası ve en az bir program satırı var;
+        // aynı hoca aynı zaman diliminde iki şubede değil.
+        var subeler = await db.CourseSections.Where(s => s.TermId == etkin[0].Id).Include(s => s.SectionSchedules).ToListAsync();
+        Assert.NotEmpty(subeler);
+        Assert.All(subeler, s => { Assert.NotNull(s.InstructorId); Assert.NotEmpty(s.SectionSchedules); });
+        var hocaDilim = subeler.SelectMany(s => s.SectionSchedules.Select(ss => (s.InstructorId, ss.TimeSlotId))).ToList();
+        Assert.Equal(hocaDilim.Count, hocaDilim.Distinct().Count());
     }
 
     private static Task<int> KurAsync(SisUygulamasi uygulama, string eposta, string? parola) =>
