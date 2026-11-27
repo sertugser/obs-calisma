@@ -501,6 +501,27 @@ public class AcademicCalendarServiceTests
         result.Events.Single(e => e.TemplateItemKey == "prep_final_exam").EndDate.Should().Be(Utc(2025, 12, 5));
     }
 
+    // Etkinlik taşımada da bozuk kurum saat dilimi ayarı kayıttan önce hata verir: etkinlik yerinde kalır.
+    [Fact]
+    public async Task UpdateEventAsync_Throws_AndSavesNothing_WhenInstitutionTimeZoneInvalid()
+    {
+        using var ctx = CreateContext();
+        var term = SeedTerm(ctx);
+        await CreateService(ctx).UpsertAsync(term.Id, ValidDto(term));
+        ctx.TermCalendarEvents.Add(
+            new TermCalendarEvent { TermId = term.Id, EventType = CalendarEventType.GraduateApplication, Title = "Lisansustu Program Basvurulari", StartDate = Utc(2025, 10, 1), EndDate = Utc(2025, 10, 20), IsPublic = true, ChainCode = "ADMISSIONS", TemplateItemKey = "fall_graduate_app" });
+        ctx.SystemConfigs.Add(new SystemConfig { Key = "Institution.TimeZone", Value = "Mars/Olympus", DataType = "string" });
+        await ctx.SaveChangesAsync();
+        var eventId = ctx.TermCalendarEvents.Single(e => e.TemplateItemKey == "fall_graduate_app").Id;
+        var timeZone = new InstitutionTimeZoneProvider(new SystemConfigProvider(ctx, new MemoryCache(new MemoryCacheOptions())));
+
+        await FluentActions.Awaiting(() => CreateService(ctx, timeZone: timeZone)
+                .UpdateEventAsync(term.Id, eventId, new UpdateTermCalendarEventDto(Utc(2025, 10, 5), Utc(2025, 10, 24), false)))
+            .Should().ThrowAsync<InvalidOperationException>().WithMessage("*Kurum saat dilimi*");
+        var stored = ctx.TermCalendarEvents.AsNoTracking().Single(e => e.Id == eventId);
+        (stored.StartDate, stored.EndDate).Should().Be((Utc(2025, 10, 1), Utc(2025, 10, 20)));
+    }
+
     [Fact]
     public async Task UpdateEventAsync_AllowsLongApplicationWindow_OnSingleDayHoliday()
     {
