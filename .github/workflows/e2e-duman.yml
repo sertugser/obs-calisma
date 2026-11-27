@@ -20,7 +20,8 @@ jobs:
     name: E2E Smoke
     # Playwright 1.60.0 ubuntu-latest'in çözüldüğü 26.04'ü desteklemiyor; Playwright yükseltilince ubuntu-latest'e dönülecek.
     runs-on: ubuntu-24.04
-    timeout-minutes: 25
+    # Kurulum (setup, örnek veriyle 6-10 dk) npm adımlarından önce sırayla koşar.
+    timeout-minutes: 35
     env:
       ASPNETCORE_ENVIRONMENT: Development
       ASPNETCORE_URLS: http://127.0.0.1:5213
@@ -76,7 +77,9 @@ jobs:
           SIS_SETUP_ADMIN_EMAIL: duman-yonetici@example.edu
         run: |
           timeout 60 bash -c 'until docker exec obs-duman-db pg_isready -U postgres -d sis; do sleep 2; done'
-          SIS_SETUP_ADMIN_PASSWORD="$DUMAN_PAROLA" timeout 900             dotnet run --configuration Release --no-build --no-launch-profile -- setup --kurum yerel --seed-demo             > "$RUNNER_TEMP/setup.log" 2>&1 || { kod=$?; tail -40 "$RUNNER_TEMP/setup.log"; [ "$kod" -ne 124 ] || echo "::error::Kurulum 900 saniyede bitmedi"; exit "$kod"; }
+          SIS_SETUP_ADMIN_PASSWORD="$DUMAN_PAROLA" timeout 900 \
+            dotnet run --configuration Release --no-build --no-launch-profile -- setup --kurum yerel --seed-demo \
+            > "$RUNNER_TEMP/setup.log" 2>&1 || { kod=$?; tail -40 "$RUNNER_TEMP/setup.log"; [ "$kod" -ne 124 ] || echo "::error::Kurulum 900 saniyede bitmedi"; exit "$kod"; }
 
       - name: API'yi başlat
         working-directory: SIS.API

@@ -29,6 +29,7 @@ public sealed class KurulumVeGirisTests(PostgresFixture fixture) : IAsyncLifetim
     public async Task Acilis_HicbirOrtamdaVeriYazmaz(string ortam)
     {
         var once = await SatirSayilariAsync();
+        var ilkDegerlendirme = await DegerlendirmeDonemiSayisiAsync();
         await using var uygulama = new SisUygulamasi(ortam, fixture.BaglantiCumlesi);
         using var istemci = uygulama.CreateClient();
 
@@ -36,6 +37,8 @@ public sealed class KurulumVeGirisTests(PostgresFixture fixture) : IAsyncLifetim
         Assert.Equal(HttpStatusCode.Unauthorized, giris.StatusCode);
         var sonra = await SatirSayilariAsync();
         Assert.Empty(sonra.Where(s => once.GetValueOrDefault(s.Key) != s.Value).Select(s => $"{s.Key}: {once.GetValueOrDefault(s.Key)} -> {s.Value}"));
+        // Arka plan işi en çok bir değerlendirme dönemi açabilir (madde 41); seed bundan fazlasını yazardı.
+        Assert.True(await DegerlendirmeDonemiSayisiAsync() <= ilkDegerlendirme + 1);
     }
 
     [Fact]
@@ -60,6 +63,12 @@ public sealed class KurulumVeGirisTests(PostgresFixture fixture) : IAsyncLifetim
         Assert.Equal(HttpStatusCode.OK, menu.StatusCode);
         using var menuGovde = JsonDocument.Parse(await menu.Content.ReadAsStringAsync());
         Assert.True(menuGovde.RootElement.GetArrayLength() > 0);
+    }
+
+    private async Task<int> DegerlendirmeDonemiSayisiAsync()
+    {
+        await using var db = fixture.YeniContext();
+        return await db.EvaluationPeriods.CountAsync();
     }
 
     // Sayımın dışında: denetim günlüğü ve değerlendirme dönemleri. Değerlendirme dönemini açılışta

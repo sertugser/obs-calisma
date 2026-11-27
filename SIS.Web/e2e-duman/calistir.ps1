@@ -44,13 +44,13 @@ if (-not (Test-Calisiyor 'obs-duman-api')) {
   docker network create obs-duman-net | Out-Null
   docker run -d --name obs-duman-db --network obs-duman-net --network-alias db --tmpfs /var/lib/postgresql `
     -e "POSTGRES_PASSWORD=$dbParola" -e POSTGRES_DB=sis postgres:18.7-trixie | Out-Null
-  $apiKomut = 'mkdir /work && tar -C /src --exclude=node_modules --exclude=bin --exclude=obj --exclude=.git -cf - . | tar -C /work -xf - && cd /work && dotnet tool restore && dotnet build SIS.API/SIS.API.csproj -c Release && cd SIS.API && until dotnet run --no-build -c Release --no-launch-profile -- setup --kurum yerel --seed-demo; do sleep 3; done && exec dotnet run --no-build -c Release --no-launch-profile'
+  $apiKomut = 'mkdir /work && tar -C /src --exclude=node_modules --exclude=bin --exclude=obj --exclude=.git -cf - . | tar -C /work -xf - && cd /work && dotnet tool restore && dotnet build SIS.API/SIS.API.csproj -c Release && cd SIS.API && n=0 && until dotnet run --no-build -c Release --no-launch-profile -- setup --kurum yerel --seed-demo; do n=$((n+1)); [ $n -ge 20 ] && exit 1; sleep 3; done && exec dotnet run --no-build -c Release --no-launch-profile'
   docker run -d --name obs-duman-api --network obs-duman-net -p 127.0.0.1:15213:5213 -p 127.0.0.1:15173:5173 `
     -v "${repo}:/src:ro" `
     -e "ConnectionStrings__DefaultConnection=Host=db;Port=5432;Database=sis;Username=postgres;Password=$dbParola" `
     -e 'Cors__AllowedOrigins__0=http://localhost:5173' -e ASPNETCORE_ENVIRONMENT=Development `
     -e "Jwt__Key=$(New-Rastgele 48)" -e Jwt__Issuer=sis-duman -e Jwt__Audience=sis-duman -e Jwt__ExpiresInMinutes=60 `
-    -e SIS_SETUP_ADMIN_EMAIL=duman-yonetici@example.edu -e "SIS_SETUP_ADMIN_PASSWORD=Aa1!$(New-Rastgele 24)" `
+    -e Logging__Console__FormatterOptions__SingleLine=true -e SIS_SETUP_ADMIN_EMAIL=duman-yonetici@example.edu -e "SIS_SETUP_ADMIN_PASSWORD=Aa1!$(New-Rastgele 24)" `
     -e ASPNETCORE_URLS=http://0.0.0.0:5213 mcr.microsoft.com/dotnet/sdk:10.0 sh -c $apiKomut | Out-Null
   $webKomut = 'mkdir /work && tar -C /src --exclude=node_modules --exclude=dist -cf - . | tar -C /work -xf - && cd /work && npm ci --no-audit --no-fund && npm run build && exec npx vite preview --host 0.0.0.0 --port 5173 --strictPort'
   docker run -d --name obs-duman-web --network container:obs-duman-api -v "${web}:/src:ro" node:20 sh -c $webKomut | Out-Null

@@ -34,7 +34,7 @@ if errorlevel 1 (
   cd SIS.API
   call dotnet run --no-build --launch-profile http -- setup --kurum yerel --seed-demo
   if errorlevel 1 (
-    echo [WARN] Setup failed. Continuing startup without blocking the system...
+    echo [WARN] Setup failed. Bos veritabaninda SIS_SETUP_ADMIN_EMAIL ve SIS_SETUP_ADMIN_PASSWORD gerekir; ornek hesaplar icin SIS_DEMO_PASSWORD. Uygulama verisiz acilacak.
   )
   cd ..
 )

@@ -58,6 +58,7 @@ test('öğrenci transkript sayfasını açar', async ({ page }) => {
   await expect(page.getByRole('row', { name: METIN.ogrenciNoSatiri })).toBeVisible();
   // Örnek veride notlar geçmiş dönemlerde (Adım 3.7): transkriptte ders listesi dolu, boş durum iletisi yok.
   await expect(page.getByText(METIN.transkriptBos)).toHaveCount(0);
+  await expect(page.getByRole('row').filter({ has: page.getByRole('cell') }).nth(1)).toBeVisible();
 });
 
 test('öğrenci ders kayıt sayfasını açar', async ({ page }) => {
