@@ -214,6 +214,22 @@ public sealed class KurulumKomutuTests(PostgresFixture fixture) : IAsyncLifetime
         Assert.All(subeler, s => { Assert.NotNull(s.InstructorId); Assert.NotEmpty(s.SectionSchedules); });
         var hocaDilim = subeler.SelectMany(s => s.SectionSchedules.Select(ss => (s.InstructorId, ss.TimeSlotId))).ToList();
         Assert.Equal(hocaDilim.Count, hocaDilim.Distinct().Count());
+
+        // Örnek veri yeniden kurulunca yöneticinin kaydettiği saat dilimi (bilerek kaydedilmiş Etc/UTC dahil) ezilmez.
+        foreach (var kayitli in new[] { "Europe/Berlin", "Etc/UTC" })
+        {
+            await using (var yaz = fixture.YeniContext())
+            {
+                (await yaz.SystemConfigs.SingleAsync(c => c.Key == "Institution.TimeZone")).Value = kayitli;
+                await yaz.SaveChangesAsync();
+            }
+            Assert.Equal(0, await KurulumCalistirici.CalistirAsync(
+                uygulama.Services,
+                new KurulumSecenekleri(DemoVerisi: true, "yonetici@example.edu", RastgeleParola(), DemoTarihi: gun),
+                NullLogger.Instance));
+            await using var oku = fixture.YeniContext();
+            Assert.Equal(kayitli, await oku.SystemConfigs.Where(c => c.Key == "Institution.TimeZone").Select(c => c.Value).SingleAsync());
+        }
     }
 
     [Fact]
