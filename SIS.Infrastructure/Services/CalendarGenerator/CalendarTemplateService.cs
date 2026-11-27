@@ -114,6 +114,8 @@ public class CalendarTemplateService : ICalendarTemplateService
         return ToDto(entity);
     }
 
+    // Tablo boşsa varsayılan şablonları ve tatilleri yazar; doluysa hiçbir satıra dokunmaz.
+    // Okuma yolları bunu çağırır: yöneticinin düzenlediği şablon ve tatiller okurken ezilmez.
     public async Task EnsureDefaultsAsync(CancellationToken ct = default)
     {
         var now = DateTime.UtcNow;
@@ -123,21 +125,31 @@ public class CalendarTemplateService : ICalendarTemplateService
             _context.CalendarTemplates.AddRange(DefaultTemplates(now));
             await _context.SaveChangesAsync(ct);
         }
-        else
-        {
-            await EnsureRegulationAlignedDefaultsAsync(now, ct);
-            await EnsureLocalizedDefaultLabelsAsync(now, ct);
-        }
 
         if (!await _context.HolidayDefinitions.AnyAsync(ct))
         {
             _context.HolidayDefinitions.AddRange(DefaultHolidayDefinitions(now));
             await _context.SaveChangesAsync(ct);
         }
-        else
+    }
+
+    // Yalnız kurulum (setup) çağırır: boşsa varsayılanları yazar, doluysa yönetmelik uyumu ve
+    // yerelleştirilmiş varsayılan adlar için bilinen eski varsayılan satırları günceller.
+    public async Task KurulumdaVarsayilanlariUygulaAsync(CancellationToken ct = default)
+    {
+        var now = DateTime.UtcNow;
+        var sablonVardi = await _context.CalendarTemplates.AnyAsync(ct);
+        var tatilVardi = await _context.HolidayDefinitions.AnyAsync(ct);
+        await EnsureDefaultsAsync(ct);
+
+        if (sablonVardi)
         {
-            await EnsureLocalizedHolidayLabelsAsync(now, ct);
+            await EnsureRegulationAlignedDefaultsAsync(now, ct);
+            await EnsureLocalizedDefaultLabelsAsync(now, ct);
         }
+
+        if (tatilVardi)
+            await EnsureLocalizedHolidayLabelsAsync(now, ct);
     }
 
     private async Task EnsureRegulationAlignedDefaultsAsync(DateTime now, CancellationToken ct)

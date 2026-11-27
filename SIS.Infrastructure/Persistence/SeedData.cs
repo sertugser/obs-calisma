@@ -23,7 +23,7 @@ public static partial class SeedData
     {
         // Roller ve izinler sistem kataloğundan (anahtarla, yalnız eksik olanı ekler).
         await Katalog.SistemKatalogu.EsitleAsync(context, DateTime.UtcNow);
-        await new CalendarTemplateService(context).EnsureDefaultsAsync();
+        await new CalendarTemplateService(context).KurulumdaVarsayilanlariUygulaAsync();
         // SystemConfig, zaman dilimlerinden önce yazılmalı: zaman dilimi üretimi Schedule.* anahtarlarını okuyor.
         await SeedSystemConfigAsync(context);
         await SeedWebModuleSettingsAsync(context);
