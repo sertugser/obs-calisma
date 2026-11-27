@@ -1,10 +1,9 @@
 name: E2E Smoke
 
 # Tarayıcıdan giriş ve ana ekranlar için küçük duman takımı (SIS.Web/e2e-duman). Zorunlu kontrol değildir.
+# Actions dakikasını azaltmak için PR'da koşmaz: yalnız main'e push'ta ve elle (workflow_dispatch) koşar.
 # Development seed'i boş veritabanında koşar; parolalar ve anahtarlar iş içinde rastgele üretilir.
 on:
-  pull_request:
-    branches: [main]
   push:
     branches: [main]
   workflow_dispatch:

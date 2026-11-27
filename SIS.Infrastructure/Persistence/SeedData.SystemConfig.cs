@@ -26,6 +26,26 @@ public static partial class SeedData
         "Schedule.Candidate.MaxCombinations",
         "Schedule.Candidate.MaxWindowsPerDay",
         "Schedule.Candidate.MaxClassroomsPerType",
+        // Hiçbir kodun okumadığı eski yumuşak kısıt anahtarları (20260502132401 migration'ı da siliyordu;
+        // seed her açılışta geri ekliyordu). Ayar ekranında da gizliler.
+        "SoftConstraint.S1.Enabled",
+        "SoftConstraint.S2.Enabled",
+        "SoftConstraint.S3.Enabled",
+        "SoftConstraint.S4.Enabled",
+        "SoftConstraint.S5.Enabled",
+        "SoftConstraint.S7.Enabled",
+        "SoftConstraint.S8.Enabled",
+        "SoftConstraint.S9.Enabled",
+        "SoftConstraint.S12.Enabled",
+        "SoftConstraint.Weight.S1",
+        "SoftConstraint.Weight.S2",
+        "SoftConstraint.Weight.S3",
+        "SoftConstraint.Weight.S4",
+        "SoftConstraint.Weight.S5",
+        "SoftConstraint.Weight.S7",
+        "SoftConstraint.Weight.S8",
+        "SoftConstraint.Weight.S9",
+        "SoftConstraint.Weight.S12",
     ];
 
     public static async Task SeedSystemConfigAsync(AppDbContext context)
@@ -52,6 +72,7 @@ public static partial class SeedData
             new() { Key = "Security.PasswordRotationEnabled", Value = "true", Category = "Security", DataType = "bool", Description = "Kullanıcı şifreleri periyodik olarak değiştirmeye zorlanır mı?" },
             new() { Key = "Security.PasswordRotationMonths", Value = "6", Category = "Security", DataType = "int", Description = "Şifre değiştirme periyodu (ay)" },
             new() { Key = "Localization.DefaultLanguage", Value = "tr-TR", Category = "Localization", DataType = "string", Description = "Sistem varsayılan arayüz dili" },
+            new() { Key = "Institution.TimeZone", Value = "Etc/UTC", Category = "Localization", DataType = "string", Description = "Kurumun saat dilimi (IANA adı, ör. Etc/UTC). Takvim günü olarak girilen son günlerin bittiği anı belirler." },
 
             // ── Akademisyen / Başvuru Master Anahtarları ─────────
             new() { Key = "Instructor.StudentContactInfoVisible", Value = "true", Category = "Instructor", DataType = "bool", Description = "Akademisyen ekranlarında öğrenci e-posta ve GSM bilgileri gösterilsin mi?" },
@@ -111,30 +132,10 @@ public static partial class SeedData
             new() { Key = "Classroom.OccupancyTarget.Max", Value = "85", Category = "Scheduling", DataType = "int", Description = "Derslik doluluk oranı üst hedefi (%)" },
 
             // ── Soft Constraint Kontrolleri ───────────────────────
-            new() { Key = "SoftConstraint.S1.Enabled", Value = "true", Category = "Scheduling", DataType = "bool", Description = "S1: Derslik doluluk oranı kontrolü aktif/pasif" },
-            new() { Key = "SoftConstraint.S2.Enabled", Value = "true", Category = "Scheduling", DataType = "bool", Description = "S2: Hoca günlük yoğunluk dengesi kontrolü aktif/pasif" },
             new() { Key = "SoftConstraint.S2.MaxDailyHours", Value = "6", Category = "Scheduling", DataType = "int", Description = "S2: Bir hocanın günlük max ders saati" },
-            new() { Key = "SoftConstraint.S3.Enabled", Value = "true", Category = "Scheduling", DataType = "bool", Description = "S3: Slot dağılım dengesi kontrolü aktif/pasif" },
             new() { Key = "SoftConstraint.S3.MaxSectionsPerSlot", Value = "5", Category = "Scheduling", DataType = "int", Description = "S3: Bir slot'ta max section sayısı (prime-time yığılma önleme)" },
-            new() { Key = "SoftConstraint.S4.Enabled", Value = "true", Category = "Scheduling", DataType = "bool", Description = "S4: Cross-department sık birlikte alınan ders çakışma uyarısı aktif/pasif" },
             new() { Key = "SoftConstraint.S4.MinCoPairThreshold", Value = "20", Category = "Scheduling", DataType = "int", Description = "S4: Birlikte alınan ders çifti minimum öğrenci eşiği" },
-            new() { Key = "SoftConstraint.S5.Enabled", Value = "true", Category = "Scheduling", DataType = "bool", Description = "S5: Öğle arası koruması (soft mod) aktif/pasif" },
-            new() { Key = "SoftConstraint.S7.Enabled", Value = "true", Category = "Scheduling", DataType = "bool", Description = "S7: Öğrenci ders arası boşluk kontrolü aktif/pasif" },
             new() { Key = "SoftConstraint.S7.MaxGapSlots", Value = "3", Category = "Scheduling", DataType = "int", Description = "S7: Max ardışık boş slot sayısı" },
-            new() { Key = "SoftConstraint.S8.Enabled", Value = "true", Category = "Scheduling", DataType = "bool", Description = "S8: Hoca gün sayısı minimizasyonu aktif/pasif" },
-            new() { Key = "SoftConstraint.S9.Enabled", Value = "true", Category = "Scheduling", DataType = "bool", Description = "S9: Erken sabah/geç akşam cezası aktif/pasif" },
-            new() { Key = "SoftConstraint.S12.Enabled", Value = "true", Category = "Scheduling", DataType = "bool", Description = "S12: Hafta içi dengeli dağılım aktif/pasif" },
-
-            // ── Soft Constraint Ağırlıkları ──────────────────────
-            new() { Key = "SoftConstraint.Weight.S1", Value = "3", Category = "Scheduling", DataType = "decimal", Description = "S1 ağırlığı" },
-            new() { Key = "SoftConstraint.Weight.S2", Value = "2", Category = "Scheduling", DataType = "decimal", Description = "S2 ağırlığı" },
-            new() { Key = "SoftConstraint.Weight.S3", Value = "2", Category = "Scheduling", DataType = "decimal", Description = "S3 ağırlığı" },
-            new() { Key = "SoftConstraint.Weight.S4", Value = "3", Category = "Scheduling", DataType = "decimal", Description = "S4 ağırlığı" },
-            new() { Key = "SoftConstraint.Weight.S5", Value = "2", Category = "Scheduling", DataType = "decimal", Description = "S5 ağırlığı" },
-            new() { Key = "SoftConstraint.Weight.S7", Value = "2", Category = "Scheduling", DataType = "decimal", Description = "S7 ağırlığı" },
-            new() { Key = "SoftConstraint.Weight.S8", Value = "1", Category = "Scheduling", DataType = "decimal", Description = "S8 ağırlığı" },
-            new() { Key = "SoftConstraint.Weight.S9", Value = "1", Category = "Scheduling", DataType = "decimal", Description = "S9 ağırlığı" },
-            new() { Key = "SoftConstraint.Weight.S12", Value = "1", Category = "Scheduling", DataType = "decimal", Description = "S12 ağırlığı" },
 
             new() { Key = "Schedule.LunchBreak.IsHard", Value = "true", Category = "Schedule", DataType = "bool", Description = "Öğle arası hard constraint mi (true) soft constraint mi (false)" },
             new() { Key = "Schedule.MaxConsecutiveHours", Value = "4", Category = "Schedule", DataType = "int", Description = "Hocanın aralıksız max ardışık ders saati" },
@@ -199,7 +200,6 @@ public static partial class SeedData
             // path zaten section-aware NoOverlap). DB temizliği migration ile yapıldı.
 
             // ── Akıllı Derslik Atama Önerisi (ClassroomSuggestionService) ─────
-            new() { Key = "Classroom.AmphiThreshold", Value = "100", Category = "Suggestion", DataType = "int", Description = "Bir dersi amfi gerektiren öğrenci eşiği. Tahmini talep bu değerin üzerindeyse ders amfide verilmeli sayılır." },
             new() { Key = "Suggestion.ElectiveDemandRatio", Value = "0.35", Category = "Suggestion", DataType = "decimal", Description = "Seçmeli dersleri öğrencilerin kaç katı talep eder (0-1 arası). 0.35 = %35'i alır varsayımı." },
             new() { Key = "Suggestion.HistoricalWeight", Value = "0.6", Category = "Suggestion", DataType = "decimal", Description = "Tarihsel veri ile tahmin harmanlamasında tarihsel veriye verilen ağırlık (0-1). 0.6 = tarihsel %60, tahmin %40." },
             new() { Key = "Suggestion.HistoricalAnomalyCap", Value = "2.0", Category = "Suggestion", DataType = "decimal", Description = "Anomali koruması: tarihsel kullanım, tahminin bu katından fazlasını geçemez. 2.0 = max tahminin 2 katı." },
@@ -222,26 +222,16 @@ public static partial class SeedData
             .Where(config => !RemovedSystemConfigKeys.Contains(config.Key, StringComparer.OrdinalIgnoreCase))
             .ToList();
 
-        // Bazı eski merge/refactor izlerinde aynı key listede iki kez tanımlanmış olabilir.
-        // Startup seed'inin patlamaması için key bazında tekilleştiriyoruz.
-        configs = configs
-            .GroupBy(config => config.Key, StringComparer.OrdinalIgnoreCase)
-            .Select(group => group.First())
-            .ToList();
-
-        var existingKeys = await context.SystemConfigs
-            .AsNoTracking()
-            .Select(config => config.Key)
-            .ToListAsync();
-        var existingKeySet = existingKeys.ToHashSet(StringComparer.OrdinalIgnoreCase);
-        var missingConfigs = configs
-            .Where(config => !existingKeySet.Contains(config.Key))
-            .ToList();
-
-        if (missingConfigs.Count == 0)
-            return;
-
-        context.SystemConfigs.AddRange(missingConfigs);
-        await context.SaveChangesAsync();
+        // Katalog kuralı: eksik anahtar eklenir, yöneticinin sildiği geri gelmez. Var olan satıra hiç
+        // dokunulmaz: değer ve veri tipi yöneticinin; kategori zamanlama yükleyicisinde süzgeç olarak
+        // kullanılıyor; açıklamaları migration'lar sonradan değiştirmiş. Kataloğun alanları Adım 3.4b'de.
+        await Katalog.KatalogEsitleyici.EsitleAsync(context, new Katalog.KatalogTuru<SystemConfig, SystemConfig>
+        {
+            Ad = "sistem-ayari",
+            Kayitlar = configs,
+            KayitAnahtari = c => c.Key,
+            VarlikAnahtari = c => c.Key,
+            Olustur = (c, _) => c,
+        }, DateTime.UtcNow);
     }
 }

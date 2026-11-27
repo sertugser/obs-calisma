@@ -171,7 +171,7 @@ Sprint 3'te 7 hardcoded role array silindi (-449 satır). Sadece type'lar + help
    </Route>
    ```
 4. İlgili rollere yetki ata: admin UI'dan veya `RolePermissionSeed.cs`'te seed default
-5. (Eğer menu item ise) `MenuStructureSeed.cs`'e ekle, item'ın permission ile bağla
+5. (Eğer menu item ise) `Persistence/Katalog/MenuKatalogu.cs` listesine ekle, item'ın permission anahtarını yaz
 
 **Çoklu permission gerekliyse** (nadir): `anyPermission={[...]}` kullan, OR mantığı.
 
@@ -182,8 +182,8 @@ Sprint 3'te 7 hardcoded role array silindi (-449 satır). Sadece type'lar + help
 | Seed | Dosya | Sayı | Notlar |
 |------|-------|------|--------|
 | `PermissionSeed` | [PermissionSeed.cs](../../SIS.Infrastructure/Persistence/Seeds/PermissionSeed.cs) | 255 key | Liste; yazma işi sistem kataloğunda (`Persistence/Katalog/SistemKatalogu.cs`): eksik key'i ekler, kategori ve açıklamayı katalogdaki değere çeker, silinmiş key'i geri getirmez |
-| `MenuStructureSeed` | [MenuStructureSeed.cs](../../SIS.Infrastructure/Persistence/Seeds/MenuStructureSeed.cs) | 13 modül + 75 item | Idempotent (AnyAsync check) |
-| `RolePermissionSeed` | [RolePermissionSeed.cs](../../SIS.Infrastructure/Persistence/Seeds/RolePermissionSeed.cs) | 6 rol × ortalama 60 key = 365 satır | SystemAdmin **YOK** (locked) |
+| `MenuKatalogu` | [MenuKatalogu.cs](../../SIS.Infrastructure/Persistence/Katalog/MenuKatalogu.cs) | 18 modül + 74 öğe | Eksik olanı ekler, yöneticinin sildiğini geri getirmez (eski `MenuStructureSeed` yalnız eşdeğerlik testi için duruyor) |
+| `RolePermissionSeed` | [RolePermissionSeed.cs](../../SIS.Infrastructure/Persistence/Seeds/RolePermissionSeed.cs) | 6 rol, 432 atama | Liste; yazma işi rol-izin kataloğunda (`Persistence/Katalog/RolIzinKatalogu.cs`). SystemAdmin **YOK** (locked) |
 
 `SeedData.SeedAsync` orchestrator [SeedData.cs:23-26](../../SIS.Infrastructure/Persistence/SeedData.cs) içinde sırayla çağırır.
 

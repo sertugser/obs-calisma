@@ -5,7 +5,7 @@ namespace SIS.Infrastructure.Persistence.Seeds;
 
 /// <summary>
 /// Seeds the 21 standard "Açma Nedeni" values from Eski Proliz.
-/// Idempotent — only inserts missing rows by Code.
+/// Katalog kuralı: Code'su tabloda da katalog kaydında da olmayanı ekler; mevcut kayıtlara dokunmaz, yöneticinin sildiği geri gelmez.
 /// "Dönemsel (Teorik)" carries the special bypass flags that match Proliz behavior.
 /// </summary>
 public static class CurriculumCourseOpeningReasonSeed
@@ -46,19 +46,22 @@ public static class CurriculumCourseOpeningReasonSeed
 
     public static async Task SeedAsync(AppDbContext context)
     {
-        var existing = await context.CurriculumCourseOpeningReasons
-            .Select(r => r.Code)
-            .ToListAsync();
-        var existingSet = existing.ToHashSet(StringComparer.OrdinalIgnoreCase);
-
-        var toInsert = All.Where(r => !existingSet.Contains(r.Code)).ToList();
-        if (toInsert.Count == 0) return;
-
-        var now = DateTime.UtcNow;
-        foreach (var r in toInsert) r.CreatedAt = now;
-
-        context.CurriculumCourseOpeningReasons.AddRange(toInsert);
-        await context.SaveChangesAsync();
+        // Katalog kuralı: eksik açma nedeni eklenir, yöneticinin sildiği geri gelmez, var olana dokunulmaz.
+        await Katalog.KatalogEsitleyici.EsitleAsync(context, new Katalog.KatalogTuru<CurriculumCourseOpeningReason, CurriculumCourseOpeningReason>
+        {
+            Ad = "acma-nedeni",
+            Kayitlar = All,
+            KayitAnahtari = r => r.Code,
+            VarlikAnahtari = r => r.Code,
+            Olustur = (r, simdi) => new CurriculumCourseOpeningReason
+            {
+                Code = r.Code, Name = r.Name, Description = r.Description, IsActive = r.IsActive, SortOrder = r.SortOrder,
+                AllowsAdvisorGrading = r.AllowsAdvisorGrading, BypassScheduleConflict = r.BypassScheduleConflict,
+                BypassMandatoryAttendance = r.BypassMandatoryAttendance, IsExcludedFromGpa = r.IsExcludedFromGpa,
+                IsCreditFree = r.IsCreditFree, RequiresApproval = r.RequiresApproval,
+                AllowsCustomGradingScale = r.AllowsCustomGradingScale, CreatedAt = simdi,
+            },
+        }, DateTime.UtcNow);
     }
 
     private static CurriculumCourseOpeningReason New(
