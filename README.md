@@ -123,11 +123,15 @@ Bu script `dotnet restore`, `dotnet build`, EF Core migration, `npm install` ve 
 
 ## Varsayılan Kullanıcılar (Development)
 
-| Rol | E-posta | Şifre |
-|-----|---------|-------|
-| Admin | admin@ankarabilim.edu.tr | Admin123! |
-| Öğretim Üyesi | ogretmen@ankarabilim.edu.tr | Ogretmen123! |
-| Öğrenci | Seed data ile oluşturulur | Ogrenci123! |
+Örnek verideki bütün hesapların parolası `SIS_DEMO_PASSWORD` ortam değişkeninden gelir; değişken boşsa her çalışmada rastgele üretilir ve hiçbir yere yazılmaz. Kodda sabit parola yoktur.
+
+| Rol | E-posta |
+|-----|---------|
+| Yönetici | yonetici@example.edu |
+| İdari personel | idari@example.edu |
+| Danışman | danisman@example.edu |
+| Öğretim elemanı | ogretim01@example.edu … ogretim36@example.edu |
+| Öğrenci | ornek01@example.edu … ornek18@example.edu, ogrenci0019@example.edu … |
 
 ## Proje Yapısı
 
