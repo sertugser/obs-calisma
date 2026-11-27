@@ -4,7 +4,7 @@ using SIS.Domain.Entities;
 namespace SIS.Infrastructure.Persistence.Seeds;
 
 /// <summary>
-/// Seeds the 21 standard "Açma Nedeni" values from Eski Proliz.
+/// "Açma Nedeni" values (5 core + 16 local-institution), originally from Eski Proliz.
 /// Katalog kuralı: Code'su tabloda da katalog kaydında da olmayanı ekler; mevcut kayıtlara dokunmaz, yöneticinin sildiği geri gelmez.
 /// "Dönemsel (Teorik)" carries the special bypass flags that match Proliz behavior.
 /// </summary>
@@ -50,7 +50,7 @@ public static class CurriculumCourseOpeningReasonSeed
 
     public static Task SeedAsync(AppDbContext context) => SeedAsync(context, All, "acma-nedeni");
 
-    public static Task YerelKurumuSeedAsync(AppDbContext context) => SeedAsync(context, YerelKurum, "acma-nedeni-yerel-kurum");
+    public static Task YerelKurumuSeedAsync(AppDbContext context) => SeedAsync(context, YerelKurum, "acma-nedeni");
 
     private static async Task SeedAsync(AppDbContext context, IReadOnlyList<CurriculumCourseOpeningReason> liste, string tur)
     {

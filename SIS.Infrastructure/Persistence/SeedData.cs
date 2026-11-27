@@ -13,8 +13,7 @@ public static partial class SeedData
         RoleManager<IdentityRole<int>> roleManager)
     {
         await SeedSystemAsync(context, roleManager);
-        await new Kurum.YerelKurumVeriKaynagi().YazAsync(context);
-        await SeedDemoAsync(context, userManager);
+        await SeedDemoAsync(context, userManager); // yerel kurum verisini de yazar
     }
 
     // Her kurulumda gereken sistem verisi. Örnek veriye bağlı değildir.

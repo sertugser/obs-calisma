@@ -20,10 +20,17 @@ public sealed record KurulumSecenekleri(bool DemoVerisi, string? YoneticiEposta,
     public static KurulumSecenekleri Oku(string[] args, Func<string, string?> ortamDegiskeni)
     {
         var kurumYeri = Array.IndexOf(args, KurumBayragi);
+        string? kurum = null;
+        if (kurumYeri > 0)
+        {
+            if (kurumYeri + 1 >= args.Length || args[kurumYeri + 1].StartsWith("--", StringComparison.Ordinal))
+                throw new ArgumentException($"{KurumBayragi} bir kurum adı ister, ör. '{KurumBayragi} yerel'.");
+            kurum = args[kurumYeri + 1];
+        }
         return new(args.Skip(1).Contains(DemoBayragi),
             ortamDegiskeni(EpostaDegiskeni),
             ortamDegiskeni(ParolaDegiskeni),
-            kurumYeri > 0 && kurumYeri + 1 < args.Length ? args[kurumYeri + 1] : null);
+            kurum);
     }
 }
 
@@ -36,9 +43,13 @@ public static class KurulumCalistirici
     public static async Task<int> CalistirAsync(
         IServiceProvider servisler, KurulumSecenekleri secenekler, ILogger gunluk, CancellationToken ct = default)
     {
-        var adim = "migration";
+        var adim = "seçenekler";
         try
         {
+            // Kurum adı veritabanına dokunmadan önce doğrulanır.
+            var kurumKaynagi = secenekler.Kurum is null ? null : Kurum.KurumVeriKaynaklari.Bul(secenekler.Kurum);
+
+            adim = "migration";
             await using (var kapsam = servisler.CreateAsyncScope())
             {
                 var db = kapsam.ServiceProvider.GetRequiredService<AppDbContext>();
@@ -61,13 +72,12 @@ public static class KurulumCalistirici
                 ? "Kurulum: ilk yönetici oluşturuldu."
                 : "Kurulum: yönetici zaten var, dokunulmadı.");
 
-            if (secenekler.Kurum is not null)
+            if (kurumKaynagi is not null)
             {
                 adim = "kurum verisi";
-                var kaynak = Kurum.KurumVeriKaynaklari.Bul(secenekler.Kurum);
                 await AdimdaCalistirAsync(servisler, async sp =>
-                    await kaynak.YazAsync(sp.GetRequiredService<AppDbContext>(), ct), ct);
-                gunluk.LogInformation("Kurulum: '{Kurum}' kurum verisi yazıldı.", kaynak.Ad);
+                    await kurumKaynagi.YazAsync(sp.GetRequiredService<AppDbContext>(), ct), ct);
+                gunluk.LogInformation("Kurulum: '{Kurum}' kurum verisi yazıldı.", kurumKaynagi.Ad);
             }
 
             if (secenekler.DemoVerisi)

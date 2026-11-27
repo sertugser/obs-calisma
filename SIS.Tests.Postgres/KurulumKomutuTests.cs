@@ -99,7 +99,9 @@ public sealed class KurulumKomutuTests(PostgresFixture fixture) : IAsyncLifetime
         Assert.Equal(0, await KurAsync(uygulama, "yonetici@example.edu", RastgeleParola()));
         await using (var db = fixture.YeniContext())
         {
-            Assert.Equal(5, await db.CurriculumCourseOpeningReasons.CountAsync());
+            Assert.Equal(
+                new[] { "Internship", "Other", "Periodic", "Seminar", "Thesis" },
+                (await db.CurriculumCourseOpeningReasons.Select(r => r.Code).ToListAsync()).Order(StringComparer.Ordinal));
             Assert.Equal(0, await db.Classrooms.CountAsync());
         }
 
@@ -125,6 +127,29 @@ public sealed class KurulumKomutuTests(PostgresFixture fixture) : IAsyncLifetime
             uygulama.Services,
             new KurulumSecenekleri(DemoVerisi: false, "yonetici@example.edu", RastgeleParola(), Kurum: "olmayan"),
             NullLogger.Instance));
+
+        // Ad veritabanına dokunmadan önce reddedilir.
+        await using var db = fixture.YeniContext();
+        Assert.Equal(0, await db.Users.CountAsync());
+        Assert.Equal(0, await db.Faculties.CountAsync());
+    }
+
+    [Fact]
+    public async Task YoneticininSildigiKurumAcmaNedeni_KurumYenidenYazilincaGeriGelmez()
+    {
+        await using var uygulama = new SisUygulamasi(fixture.BaglantiCumlesi);
+        var secenek = new KurulumSecenekleri(DemoVerisi: false, "yonetici@example.edu", RastgeleParola(), Kurum: "yerel");
+        Assert.Equal(0, await KurulumCalistirici.CalistirAsync(uygulama.Services, secenek, NullLogger.Instance));
+        await using (var db = fixture.YeniContext())
+        {
+            db.CurriculumCourseOpeningReasons.Remove(await db.CurriculumCourseOpeningReasons.SingleAsync(r => r.Code == "Hobby"));
+            await db.SaveChangesAsync();
+        }
+
+        Assert.Equal(0, await KurulumCalistirici.CalistirAsync(uygulama.Services, secenek, NullLogger.Instance));
+
+        await using var kontrol = fixture.YeniContext();
+        Assert.False(await kontrol.CurriculumCourseOpeningReasons.AnyAsync(r => r.Code == "Hobby"));
     }
 
     [Fact]
@@ -133,6 +158,8 @@ public sealed class KurulumKomutuTests(PostgresFixture fixture) : IAsyncLifetime
         var s = KurulumSecenekleri.Oku(["setup", "--kurum", "yerel", "--seed-demo"], _ => null);
         Assert.Equal(("yerel", true), (s.Kurum, s.DemoVerisi));
         Assert.Null(KurulumSecenekleri.Oku(["setup"], _ => null).Kurum);
+        Assert.Throws<ArgumentException>(() => KurulumSecenekleri.Oku(["setup", "--kurum"], _ => null));
+        Assert.Throws<ArgumentException>(() => KurulumSecenekleri.Oku(["setup", "--kurum", "--seed-demo"], _ => null));
     }
 
     private static Task<int> KurAsync(SisUygulamasi uygulama, string eposta, string? parola) =>
