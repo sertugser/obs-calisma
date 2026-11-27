@@ -4,6 +4,9 @@ using SIS.Domain.Identity;
 namespace SIS.Infrastructure.Persistence.Seeds;
 
 /// <summary>
+/// ESKİ YOL: artık çağrılmıyor; menü Katalog/MenuKatalogu.cs'ten geliyor. Yalnız eşdeğerlik testi
+/// (MenuKataloguTests) kullanıyor; Adım 3.9'da silinir.
+///
 /// MenuModule + MenuItem ağacının seed'i. Idempotent (boş tabloda çalışır).
 /// Patch (post-Phase 1):
 ///   - "Genel İşlemler" modülü öğrenci-merkezli: Akademik Takvim, Duyurular, Alınan Dersler
