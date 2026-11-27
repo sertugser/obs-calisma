@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
+using SIS.Application.Common.Time;
 using SIS.Domain.Entities;
 using SIS.Infrastructure.Persistence;
 using SIS.Infrastructure.Services;
@@ -45,7 +46,7 @@ public sealed class InstitutionTimeZoneProviderTests
     public async Task GecersizDeger_AcikHataVerir_UtcyeDusmez(string deger)
     {
         Yaz(deger);
-        var hata = await Assert.ThrowsAsync<InvalidOperationException>(() => _saglayici.GetAsync());
+        var hata = await Assert.ThrowsAsync<InstitutionTimeZoneConfigurationException>(() => _saglayici.GetAsync());
         Assert.Contains("Sistem Ayarları", hata.Message);
     }
 

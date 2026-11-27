@@ -1,5 +1,8 @@
 using System.Globalization;
 using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
+using Moq;
 using SIS.Application.Common.Services;
 using SIS.Application.Common.Time;
 using SIS.Domain.Entities;
@@ -20,10 +23,11 @@ public class C06_CekilmeKapisiTests
     private static DateTime Utc(string s) =>
         DateTime.Parse(s, CultureInfo.InvariantCulture, DateTimeStyles.AdjustToUniversal | DateTimeStyles.AssumeUniversal);
 
-    private static DersKaydiOrtami Ortam(string cekilmeModu = WebModuleControlModes.TermEventBased)
+    private static DersKaydiOrtami Ortam(string cekilmeModu = WebModuleControlModes.TermEventBased, bool cekilmeOlayi = true)
     {
         var o = new DersKaydiOrtami();
-        o.EtkinDonem.CalendarEvents.Add(new TermCalendarEvent { EventType = CalendarEventType.CourseWithdrawal, Title = "Ders Çekilme Son Günü", StartDate = Utc("2025-05-10"), IsPublic = true });
+        if (cekilmeOlayi)
+            o.EtkinDonem.CalendarEvents.Add(new TermCalendarEvent { EventType = CalendarEventType.CourseWithdrawal, Title = "Ders Çekilme Son Günü", StartDate = Utc("2025-05-10"), IsPublic = true });
         o.EtkinDonem.CalendarEvents.Add(new TermCalendarEvent { EventType = CalendarEventType.AddDrop, Title = "Ekle-Bırak", StartDate = Utc("2025-03-21"), EndDate = Utc("2025-03-28"), IsPublic = true });
         o.EtkinDonem.CalendarEvents.Add(new TermCalendarEvent { EventType = CalendarEventType.CourseRegistration, Title = "Ders Kayıt", StartDate = Utc("2025-03-01"), EndDate = Utc("2025-03-20"), IsPublic = true });
         foreach (var (modul, mod) in new[] { ("StudentWithdrawal", cekilmeModu), ("StudentAddDrop", WebModuleControlModes.TermEventBased), ("StudentCourseRegistration", WebModuleControlModes.TermEventBased) })
@@ -34,10 +38,11 @@ public class C06_CekilmeKapisiTests
 
     private static WebModuleSettingsProvider Ayarlar(DersKaydiOrtami o) => new(o.Db, new MemoryCache(new MemoryCacheOptions()), o.Saat);
 
-    private static WebModuleControlService Kapi(DersKaydiOrtami o, IInstitutionTimeZoneProvider dilim) => new(o.Db, Ayarlar(o), o.Saat, dilim);
+    private static WebModuleControlService Kapi(DersKaydiOrtami o, IInstitutionTimeZoneProvider dilim, ILogger<WebModuleControlService>? gunluk = null) =>
+        new(o.Db, Ayarlar(o), o.Saat, dilim, gunluk ?? NullLogger<WebModuleControlService>.Instance);
 
-    private static CourseRegistrationService Servis(DersKaydiOrtami o, IInstitutionTimeZoneProvider dilim) =>
-        new(o.Db, o.Dogrulama(), o.Saat, webSettings: Ayarlar(o), webModuleControls: Kapi(o, dilim), institutionTimeZone: dilim);
+    private static CourseRegistrationService Servis(DersKaydiOrtami o, IInstitutionTimeZoneProvider dilim, ILogger<WebModuleControlService>? gunluk = null) =>
+        new(o.Db, o.Dogrulama(), o.Saat, webSettings: Ayarlar(o), webModuleControls: Kapi(o, dilim, gunluk), institutionTimeZone: dilim);
 
     // Sistem ayarlarında geçersiz kurum saat dilimi: gerçek sağlayıcı hata verir.
     private static InstitutionTimeZoneProvider BozukDilim(DersKaydiOrtami o)
@@ -101,8 +106,9 @@ public class C06_CekilmeKapisiTests
         Assert.Equal((acik, acik), (rozet, kapi));
     }
 
-    // Bozuk saat dilimi ayarı: modül listesi döner, çekilme kapalı ve nedeni (duyuru metnine rağmen) yazılı; ders kaydı kapısı
-    // etkilenmez; çekilme isteği bu nedenle reddedilir.
+    // Bozuk saat dilimi ayarı: modül listesi döner, çekilme kapalı; yönetici özetinde neden (duyuru metnine rağmen) ayrıntılı.
+    // Ders kaydı, ekle-bırak ve not girişi kapıları etkilenmez. Çekilme isteği reddedilir; öğrenciye giden neden genel
+    // (kayıtlı değer ve ayar yolu yok), ayrıntı günlüğe uyarı olarak yazılır.
     [Fact]
     public async Task BozukSaatDilimi_ListeCokmez_CekilmeKapaliVeNedenli_OtekiKapilarEtkilenmez()
     {
@@ -120,11 +126,56 @@ public class C06_CekilmeKapisiTests
         Assert.Contains("Kurum saat dilimi ayarı geçersiz", cekilme.EffectiveMessage);
         Assert.True(liste.Single(m => m.Code == "student-course-registration").IsCurrentlyOpen);
         Assert.True((await Kapi(o, bozuk).EvaluateAsync("student-course-registration")).IsOpen);
+        foreach (var kod in new[] { "student-add-drop", "midterm-grade-entry", "final-grade-entry" })
+            Assert.Equal(await Kapi(o, Istanbul).EvaluateAsync(kod), await Kapi(o, bozuk).EvaluateAsync(kod));
 
-        var y = await Servis(o, bozuk).WithdrawCourseAsync(o.Ogrenci.Id, a.Id);
+        var gunluk = new Mock<ILogger<WebModuleControlService>>();
+        var y = await Servis(o, bozuk, gunluk.Object).WithdrawCourseAsync(o.Ogrenci.Id, a.Id);
         var hata = Assert.Single(y.ValidationResult!.Errors);
-        Assert.Equal("WebModuleWithdrawalClosed", hata.Rule);
-        Assert.Contains("Kurum saat dilimi ayarı geçersiz", hata.Message);
+        Assert.Equal(("WebModuleWithdrawalClosed", "Dersten çekilme şu anda kullanılamıyor. Lütfen öğrenci işlerine başvurun."), (hata.Rule, hata.Message));
+        gunluk.Verify(l => l.Log(LogLevel.Warning, It.IsAny<EventId>(), It.Is<It.IsAnyType>((v, _) => v.ToString()!.Contains("Mars/Olympus")),
+            It.IsAny<Exception?>(), It.IsAny<Func<It.IsAnyType, Exception?, string>>()), Times.AtLeastOnce);
+    }
+
+    // Yalnız geçersiz ayar "Ayar Hatası"dır; sağlayıcının başka bir hatası (ör. kapatılmış bağlam) yutulmaz.
+    [Fact]
+    public async Task SaglayicininBaskaHatasi_Yutulmaz()
+    {
+        using var o = Ortam();
+        o.Saat.UtcNow = Utc("2025-03-10T12:00:00Z");
+        var dilim = new Mock<IInstitutionTimeZoneProvider>();
+        dilim.Setup(d => d.GetAsync(It.IsAny<CancellationToken>())).ThrowsAsync(new ObjectDisposedException("AppDbContext"));
+
+        await Assert.ThrowsAsync<ObjectDisposedException>(() => Kapi(o, dilim.Object).EvaluateAsync("student-withdrawal"));
+    }
+
+    // Dönemde çekilme olayı yoksa (takvim satırı olsa bile) kapı eskisi gibi "Takvim Eksik" ile kapalıdır. Olay varsa karar
+    // olayın tarihinden değil kuraldandır: 1 Nisan'da tek günlük olay (10 Mayıs) etkin değil, kapı yine açık.
+    [Theory]
+    [InlineData(false, false, "Takvim Eksik")]
+    [InlineData(true, true, "Açık")]
+    public async Task CekilmeOlayiYoksa_KapiKapali_VarsaKural(bool olay, bool acik, string etiket)
+    {
+        using var o = Ortam(cekilmeOlayi: olay);
+        o.Saat.UtcNow = Utc("2025-04-01T12:00:00Z");
+
+        var sonuc = await Kapi(o, Istanbul).EvaluateAsync("student-withdrawal");
+
+        Assert.Equal((acik, etiket), (sonuc.IsOpen, sonuc.EffectiveStateLabel));
+    }
+
+    // Yönetici zorlaması (WithdrawalOverride) kapıda da geçerlidir: true son günden sonra açar, false dönem içinde kapatır.
+    [Theory]
+    [InlineData(true, "2025-05-11T12:00:00Z", true)]
+    [InlineData(false, "2025-04-01T12:00:00Z", false)]
+    public async Task Zorlama_KapidaDaEtkili(bool zorlama, string an, bool acik)
+    {
+        using var o = Ortam();
+        o.EtkinDonem.AcademicCalendar!.WithdrawalOverride = zorlama;
+        o.Db.SaveChanges();
+        o.Saat.UtcNow = Utc(an);
+
+        Assert.Equal(acik, (await Kapi(o, Istanbul).EvaluateAsync("student-withdrawal")).IsOpen);
     }
 
     // "Açık" ve "Kapalı" modları takvimden ve kurum saat diliminden bağımsızdır (bozuk ayar bile okunmaz).

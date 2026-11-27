@@ -1,5 +1,6 @@
 using System.Globalization;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using SIS.Application.Common.Services;
 using SIS.Application.Common.Time;
 using SIS.Domain.Entities;
@@ -19,17 +20,23 @@ public class WebModuleControlService : IWebModuleControlService
     private readonly IWebModuleSettingsProvider _settingsProvider;
     private readonly IDateTimeProvider _clock;
     private readonly IInstitutionTimeZoneProvider _institutionTimeZone;
+    private readonly ILogger<WebModuleControlService> _logger;
+
+    // Öğrenciye giden neden: kayıtlı değer ve ayar yolu yalnız yönetici özetinde ve günlükte görünür.
+    private const string WithdrawalUnavailableMessage = "Dersten çekilme şu anda kullanılamıyor. Lütfen öğrenci işlerine başvurun.";
 
     public WebModuleControlService(
         AppDbContext context,
         IWebModuleSettingsProvider settingsProvider,
         IDateTimeProvider clock,
-        IInstitutionTimeZoneProvider institutionTimeZone)
+        IInstitutionTimeZoneProvider institutionTimeZone,
+        ILogger<WebModuleControlService> logger)
     {
         _context = context;
         _settingsProvider = settingsProvider;
         _clock = clock;
         _institutionTimeZone = institutionTimeZone;
+        _logger = logger;
     }
 
     public WebModuleControlDefinition? GetDefinition(string code)
@@ -69,6 +76,7 @@ public class WebModuleControlService : IWebModuleControlService
                 selectedMode,
                 announcementSetting?.Value,
                 activeTerm,
+                adminSummary: true,
                 ct);
 
             summaries.Add(new WebModuleControlSummary(
@@ -105,7 +113,7 @@ public class WebModuleControlService : IWebModuleControlService
             ? await LoadTermAsync(termId.Value, ct)
             : await LoadActiveTermAsync(ct);
 
-        return await EvaluateDefinitionAsync(definition, selectedMode, announcement, term, ct);
+        return await EvaluateDefinitionAsync(definition, selectedMode, announcement, term, adminSummary: false, ct);
     }
 
     private async Task<WebModuleAccessResult> EvaluateDefinitionAsync(
@@ -113,6 +121,7 @@ public class WebModuleControlService : IWebModuleControlService
         string selectedMode,
         string? announcement,
         AcademicTerm? term,
+        bool adminSummary,
         CancellationToken ct)
     {
         var selectedOption = definition.Options.FirstOrDefault(option =>
@@ -142,6 +151,7 @@ public class WebModuleControlService : IWebModuleControlService
                 selectedOption,
                 announcement,
                 definition.Title,
+                adminSummary,
                 ct),
 
             WebModuleControlModes.TermEventBased => await EvaluateTermEventBasedAccessAsync(
@@ -265,23 +275,31 @@ public class WebModuleControlService : IWebModuleControlService
     }
 
     // Çekilme kapısı dönemin çekilme kuralıdır: dönem başından son günün kurum saatiyle bitişine kadar açık.
-    // Kurum saat dilimi yalnız burada, değerlendirme başına bir kez okunur. Geçersiz ayar çekilmeyi nedeniyle
-    // kapatır (duyuru metni nedeni gizlemez); modül listesini ve öteki modülleri durdurmaz.
+    // Dönemde çekilme olayı yoksa (üretici son günü başka tarihlerden türetir) kapı eskisi gibi kapalıdır.
+    // Kurum saat dilimi yalnız burada, değerlendirme başına bir kez okunur. Geçersiz ayar çekilmeyi kapatır
+    // (duyuru metni nedeni gizlemez; ayrıntı yalnız yönetici özetinde ve günlükte); öteki modülleri durdurmaz.
     private async Task<WebModuleAccessResult> EvaluateWithdrawalAsync(
         AcademicTerm? term,
         WebModuleControlOption selectedOption,
         string? announcement,
         string title,
+        bool adminSummary,
         CancellationToken ct)
     {
+        if (term is not null && !term.CalendarEvents.Any(evt => evt.EventType == CalendarEventType.CourseWithdrawal))
+            return new WebModuleAccessResult(true, false, selectedOption.Code, selectedOption.Label, "Takvim Eksik",
+                ResolveMessage(announcement, $"{CalendarEventType.CourseWithdrawal} etkinliği takvimde tanımlı değil."));
+
         TimeZoneInfo institutionTimeZone;
         try
         {
             institutionTimeZone = await _institutionTimeZone.GetAsync(ct);
         }
-        catch (InvalidOperationException ex)
+        catch (InstitutionTimeZoneConfigurationException ex)
         {
-            return new WebModuleAccessResult(true, false, selectedOption.Code, selectedOption.Label, "Ayar Hatası", ex.Message);
+            _logger.LogWarning("Dersten çekilme kapısı kapalı: {Neden}", ex.Message);
+            return new WebModuleAccessResult(true, false, selectedOption.Code, selectedOption.Label, "Ayar Hatası",
+                adminSummary ? ex.Message : WithdrawalUnavailableMessage);
         }
 
         var now = _clock.UtcNow;
