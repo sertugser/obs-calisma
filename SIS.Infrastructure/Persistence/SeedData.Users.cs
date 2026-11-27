@@ -7,14 +7,25 @@ namespace SIS.Infrastructure.Persistence;
 
 public static partial class SeedData
 {
+    // Örnek hesapların ortak parolası: SIS_DEMO_PASSWORD ortam değişkeninden; yoksa her çalışmada
+    // rastgele (koda yazılı parola yok; duman testleri kendi parolalarını ayrıca yazar).
+    public const string DemoParolasiDegiskeni = "SIS_DEMO_PASSWORD";
+
+    private static readonly Lazy<string> demoParolasi = new(() =>
+        Environment.GetEnvironmentVariable(DemoParolasiDegiskeni) is { Length: > 0 } p
+            ? p
+            : "Aa1!" + Convert.ToHexString(System.Security.Cryptography.RandomNumberGenerator.GetBytes(16)));
+
+    private static string DemoParolasi => demoParolasi.Value;
+
     private static async Task SeedUsersAsync(AppDbContext context, UserManager<ApplicationUser> userManager)
     {
         // ============================================================
         // 1. ADMIN
         // ============================================================
-        await EnsureUserAsync(userManager, "admin@ankarabilim.edu.tr", "System", "Admin", "Admin123!", "SystemAdministrator");
-        await EnsureUserAsync(userManager, "idari@ankarabilim.edu.tr", "Akademik", "Personel", "Idari123!", "AdministrativeStaff");
-        await EnsureUserAsync(userManager, "danisman@ankarabilim.edu.tr", "Akademik", "Danisman", "Danisman123!", "AcademicAdvisor");
+        await EnsureUserAsync(userManager, "yonetici@example.edu", "Örnek", "Yönetici", DemoParolasi, "SystemAdministrator");
+        await EnsureUserAsync(userManager, "idari@example.edu", "Örnek", "Personel", DemoParolasi, "AdministrativeStaff");
+        await EnsureUserAsync(userManager, "danisman@example.edu", "Örnek", "Danışman", DemoParolasi, "AcademicAdvisor");
 
         // ============================================================
         // 2. INSTRUCTORS (36 total)
@@ -22,50 +33,50 @@ public static partial class SeedData
         var instructorData = new (string First, string Last, string Email, string DeptCode, string Title)[]
         {
             // BM (16 instructors)
-            ("Ender", "Sevinç", "ender.sevinc@ankarabilim.edu.tr", "BM", "Prof. Dr."),
-            ("Hakan", "Çağlar", "hakan.caglar@ankarabilim.edu.tr", "BM", "Prof. Dr."),
-            ("M. Nedim", "Alpdemir", "mnedim.alpdemir@ankarabilim.edu.tr", "BM", "Doç. Dr."),
-            ("Ayhan", "Akbaş", "ayhan.akbas@ankarabilim.edu.tr", "BM", "Doç. Dr."),
-            ("Mesut", "Ünlü", "mesut.unlu@ankarabilim.edu.tr", "BM", "Dr."),
-            ("Ekrem Çağlar", "Yılmaz", "ekremcaglar.yilmaz@ankarabilim.edu.tr", "BM", "Dr."),
-            ("Yüksel", "Arslan", "yuksel.arslan@ankarabilim.edu.tr", "BM", "Dr."),
-            ("Sarper", "Alkan", "sarper.alkan@ankarabilim.edu.tr", "BM", "Dr."),
-            ("Hasan", "Karaaslan", "hasan.karaaslan@ankarabilim.edu.tr", "BM", "Dr."),
-            ("Seher", "Fişekçi Par", "seher.fisekcipar@ankarabilim.edu.tr", "BM", "Dr."),
-            ("Emre", "Alıç", "emre.alic@ankarabilim.edu.tr", "BM", "Dr."),
-            ("Erkan", "Dilaveroğlu", "erkan.dilaveroglu@ankarabilim.edu.tr", "BM", "Dr."),
-            ("Sali", "Yıldırım", "sali.yildirim@ankarabilim.edu.tr", "BM", "Dr."),
-            ("Ömer Çağrı", "Dala", "omercagri.dala@ankarabilim.edu.tr", "BM", "Arş. Gör."),
-            ("Merve", "Onaran", "merve.onaran@ankarabilim.edu.tr", "BM", "Arş. Gör."),
-            ("Cansu", "Yörük", "cansu.yoruk@ankarabilim.edu.tr", "BM", "Arş. Gör."),
-            ("Mehmet", "Öztürk", "ogretmen@ankarabilim.edu.tr", "BM", "Dr."),
+            ("Ahmet", "Çelik", "ogretim01@example.edu", "BM", "Prof. Dr."),
+            ("Büşra", "Çetin", "ogretim02@example.edu", "BM", "Prof. Dr."),
+            ("Süleyman", "Ateş", "ogretim03@example.edu", "BM", "Doç. Dr."),
+            ("Özlem", "Karataş", "ogretim04@example.edu", "BM", "Doç. Dr."),
+            ("Baran", "Gündüz", "ogretim05@example.edu", "BM", "Dr."),
+            ("Melisa", "Ekinci", "ogretim06@example.edu", "BM", "Dr."),
+            ("Gökhan", "Zengin", "ogretim07@example.edu", "BM", "Dr."),
+            ("Yaren", "Savaş", "ogretim08@example.edu", "BM", "Dr."),
+            ("Berk", "Kalkan", "ogretim09@example.edu", "BM", "Dr."),
+            ("Nil", "Çoban", "ogretim10@example.edu", "BM", "Dr."),
+            ("Tarık", "Sarı", "ogretim11@example.edu", "BM", "Dr."),
+            ("Yeliz", "Kızıl", "ogretim12@example.edu", "BM", "Dr."),
+            ("Doğukan", "Erdal", "ogretim13@example.edu", "BM", "Dr."),
+            ("Miray", "Varışlı", "ogretim14@example.edu", "BM", "Arş. Gör."),
+            ("Alihan", "Solmaz", "ogretim15@example.edu", "BM", "Arş. Gör."),
+            ("Elif", "Öksüz", "ogretim16@example.edu", "BM", "Arş. Gör."),
+            ("Ramazan", "Yıldız", "ogretim17@example.edu", "BM", "Dr."),
             // EM (10 instructors)
-            ("Yavuz Selim", "Özdemir", "yavuzselim.ozdemir@ankarabilim.edu.tr", "EM", "Doç. Dr."),
-            ("Benhür", "Satır", "benhur.satir@ankarabilim.edu.tr", "EM", "Doç. Dr."),
-            ("Orhan", "Gerdan", "orhan.gerdan@ankarabilim.edu.tr", "EM", "Dr."),
-            ("Arda", "Alp", "arda.alp@ankarabilim.edu.tr", "EM", "Dr."),
-            ("Burcu Devrim", "İçtenbaş", "burcudevrim.ictenbas@ankarabilim.edu.tr", "EM", "Dr."),
-            ("Mustafa", "Akkaya", "mustafa.akkaya@ankarabilim.edu.tr", "EM", "Dr."),
-            ("Baycan", "İbrahimoğlu", "baycan.ibrahimoglu@ankarabilim.edu.tr", "EM", "Emeritus Prof. Dr."),
-            ("Özgür", "Erol", "ozgur.erol@ankarabilim.edu.tr", "EM", "Doç. Dr."),
-            ("Deniz", "Okul", "deniz.okul@ankarabilim.edu.tr", "EM", "Dr."),
-            ("Güneşcan", "Çetik", "gunescan.cetik@ankarabilim.edu.tr", "EM", "Arş. Gör."),
+            ("Gül", "Koç", "ogretim18@example.edu", "EM", "Doç. Dr."),
+            ("Berkay", "Çakmak", "ogretim19@example.edu", "EM", "Doç. Dr."),
+            ("Gamze", "Sağlam", "ogretim20@example.edu", "EM", "Dr."),
+            ("Caner", "Keskin", "ogretim21@example.edu", "EM", "Dr."),
+            ("Azra", "Gökçe", "ogretim22@example.edu", "EM", "Dr."),
+            ("Yiğit", "Bayram", "ogretim23@example.edu", "EM", "Dr."),
+            ("Bahar", "Ulusoy", "ogretim24@example.edu", "EM", "Emeritus Prof. Dr."),
+            ("Ozan", "Okumuş", "ogretim25@example.edu", "EM", "Doç. Dr."),
+            ("Ülkü", "Elmas", "ogretim26@example.edu", "EM", "Dr."),
+            ("Eray", "Uzun", "ogretim27@example.edu", "EM", "Arş. Gör."),
             // EEM (9 instructors)
-            ("Halim Haldun", "Göktaş", "halimhaldun.goktas@ankarabilim.edu.tr", "EEM", "Prof. Dr."),
-            ("Alas", "Eleyan", "alas.eleyan@ankarabilim.edu.tr", "EEM", "Doç. Dr."),
-            ("Hamed", "Kaghazchi", "hamed.kaghazchi@ankarabilim.edu.tr", "EEM", "Dr."),
-            ("Ercüment", "Karapınar", "ercument.karapinar@ankarabilim.edu.tr", "EEM", "Dr."),
-            ("Ayşe", "Özdemir", "ayse.ozdemir@ankarabilim.edu.tr", "EEM", "Dr."),
-            ("Vedat", "Tanrıverdi", "vedat.tanriverdi@ankarabilim.edu.tr", "EEM", "Dr."),
-            ("Yusuf", "Uzun", "yusuf.uzun@ankarabilim.edu.tr", "EEM", "Dr."),
-            ("Parisa", "Akar", "parisa.akar@ankarabilim.edu.tr", "EEM", "Dr."),
-            ("Taha", "Selik", "taha.selik@ankarabilim.edu.tr", "EEM", "Arş. Gör."),
+            ("Kardelen", "Öğüt", "ogretim28@example.edu", "EEM", "Prof. Dr."),
+            ("Vedat", "Göker", "ogretim29@example.edu", "EEM", "Doç. Dr."),
+            ("Hatice", "Aksu", "ogretim30@example.edu", "EEM", "Dr."),
+            ("Murat", "Yalın", "ogretim31@example.edu", "EEM", "Dr."),
+            ("Derya", "Tosun", "ogretim32@example.edu", "EEM", "Dr."),
+            ("Enes", "Öztürk", "ogretim33@example.edu", "EEM", "Dr."),
+            ("Burcu", "Özkan", "ogretim34@example.edu", "EEM", "Dr."),
+            ("Selim", "Kaplan", "ogretim35@example.edu", "EEM", "Dr."),
+            ("Sude", "Avcı", "ogretim36@example.edu", "EEM", "Arş. Gör."),
         };
 
         var depts = context.Departments.ToDictionary(d => d.Code, d => d.Id);
         foreach (var (first, last, email, deptCode, title) in instructorData)
         {
-            var user = await EnsureUserAsync(userManager, email, first, last, "Ogretmen123!", "Instructor");
+            var user = await EnsureUserAsync(userManager, email, first, last, DemoParolasi, "Instructor");
             if (!context.Instructors.Any(i => i.UserId == user.Id))
             {
                 context.Instructors.Add(new Instructor
@@ -80,13 +91,13 @@ public static partial class SeedData
         await context.SaveChangesAsync();
 
         // Department Managers (also have Instructor role from above)
-        await EnsureUserAsync(userManager, "ender.sevinc@ankarabilim.edu.tr", "Ender", "Sevinç", "Ogretmen123!", "DepartmentManager");
-        await EnsureUserAsync(userManager, "hakan.caglar@ankarabilim.edu.tr", "Hakan", "Çağlar", "Ogretmen123!", "DepartmentManager");
-        await EnsureUserAsync(userManager, "ayhan.akbas@ankarabilim.edu.tr", "Ayhan", "Akbaş", "Ogretmen123!", "DepartmentManager");
-        await EnsureUserAsync(userManager, "yavuzselim.ozdemir@ankarabilim.edu.tr", "Yavuz Selim", "Özdemir", "Ogretmen123!", "DepartmentManager");
+        await EnsureUserAsync(userManager, "ogretim01@example.edu", "Ahmet", "Çelik", DemoParolasi, "DepartmentManager");
+        await EnsureUserAsync(userManager, "ogretim02@example.edu", "Büşra", "Çetin", DemoParolasi, "DepartmentManager");
+        await EnsureUserAsync(userManager, "ogretim04@example.edu", "Özlem", "Karataş", DemoParolasi, "DepartmentManager");
+        await EnsureUserAsync(userManager, "ogretim18@example.edu", "Gül", "Koç", DemoParolasi, "DepartmentManager");
 
         // Dean (also has Instructor role from above — faculty-level authority)
-        var deanUser = await EnsureUserAsync(userManager, "halimhaldun.goktas@ankarabilim.edu.tr", "Halim Haldun", "Göktaş", "Ogretmen123!", "Dean");
+        var deanUser = await EnsureUserAsync(userManager, "ogretim28@example.edu", "Kardelen", "Öğüt", DemoParolasi, "Dean");
         await EnsureDeanScopeAsync(context, deanUser);
 
         // ============================================================
@@ -96,24 +107,24 @@ public static partial class SeedData
         var existingStudents = new (string First, string Last, string Email, string Num, string NatId,
             string ProgCode, decimal Cgpa, int Semesters, bool Scholar, int Year)[]
         {
-            ("Ayşe", "Yılmaz", "ogrenci1@ankarabilim.edu.tr", "2201001", "1220100100000", "BM-L", 3.20m, 7, true, 2022),
-            ("Emre", "Kaya", "ogrenci2@ankarabilim.edu.tr", "2401002", "1240100200000", "BM-L", 1.85m, 3, false, 2024),
-            ("Burak", "Demir", "ogrenci3@ankarabilim.edu.tr", "2501003", "1250100300000", "BM-L", 1.40m, 1, false, 2025),
-            ("Zeynep", "Arslan", "ogrenci4@ankarabilim.edu.tr", "2302001", "1230200100000", "BMTR-L", 3.10m, 5, false, 2023),
-            ("Kenan", "Yıldız", "ogrenci5@ankarabilim.edu.tr", "2402002", "1240200200000", "BMTR-L", 1.90m, 3, false, 2024),
-            ("Elif", "Ozdemir", "ogrenci6@ankarabilim.edu.tr", "2202003", "1220200300000", "BMTR-L", 1.50m, 7, false, 2022),
-            ("Sergen", "Yalcin", "ogrenci7@ankarabilim.edu.tr", "2203001", "1220300100000", "BSM-L", 3.50m, 7, false, 2022),
-            ("Arthur", "Morgan", "ogrenci8@ankarabilim.edu.tr", "2303002", "1230300200000", "BSM-L", 1.80m, 5, false, 2023),
-            ("Orkun", "Kokcu", "ogrenci9@ankarabilim.edu.tr", "2403003", "1240300300000", "BSM-L", 1.45m, 3, false, 2024),
-            ("Ceren", "Yildiz", "ogrenci10@ankarabilim.edu.tr", "2204001", "1220400100000", "EM-L", 2.80m, 7, false, 2022),
-            ("Kaan", "Celik", "ogrenci11@ankarabilim.edu.tr", "2504002", "1250400200000", "EM-L", 1.75m, 1, false, 2025),
-            ("Deniz", "Kurt", "ogrenci12@ankarabilim.edu.tr", "2304003", "1230400300000", "EM-L", 1.55m, 5, false, 2023),
-            ("Baran", "Aksoy", "ogrenci13@ankarabilim.edu.tr", "2205001", "1220500100000", "EEM-L", 3.30m, 7, false, 2022),
-            ("Selin", "Dogan", "ogrenci14@ankarabilim.edu.tr", "2405002", "1240500200000", "EEM-L", 1.95m, 3, false, 2024),
-            ("Ege", "Koç", "ogrenci15@ankarabilim.edu.tr", "2305003", "1230500300000", "EEM-L", 1.60m, 5, false, 2023),
-            ("Yusuf", "Aydin", "ogrenci16@ankarabilim.edu.tr", "2306001", "1230600100000", "YM-L", 2.70m, 5, false, 2023),
-            ("Irem", "Tas", "ogrenci17@ankarabilim.edu.tr", "2506002", "1250600200000", "YM-L", 1.85m, 1, false, 2025),
-            ("Can", "Polat", "ogrenci18@ankarabilim.edu.tr", "2406003", "1240600300000", "YM-L", 1.50m, 3, false, 2024),
+            ("Mehmet", "Öztürk", "ornek01@example.edu", "2201001", "1220100100000", "BM-L", 3.20m, 7, true, 2022),
+            ("Merve", "Polat", "ornek02@example.edu", "2401002", "1240100200000", "BM-L", 1.85m, 3, false, 2024),
+            ("Ömer", "Bayrak", "ornek03@example.edu", "2501003", "1250100300000", "BM-L", 1.40m, 1, false, 2025),
+            ("Hülya", "Erdem", "ornek04@example.edu", "2302001", "1230200100000", "BMTR-L", 3.10m, 5, false, 2023),
+            ("Serkan", "Fırat", "ornek05@example.edu", "2402002", "1240200200000", "BMTR-L", 1.90m, 3, false, 2024),
+            ("Selin", "Çakır", "ornek06@example.edu", "2202003", "1220200300000", "BMTR-L", 1.50m, 7, false, 2022),
+            ("Deniz", "Altın", "ornek07@example.edu", "2203001", "1220300100000", "BSM-L", 3.50m, 7, false, 2022),
+            ("Başak", "Yazıcı", "ornek08@example.edu", "2303002", "1230300200000", "BSM-L", 1.80m, 5, false, 2023),
+            ("Uğur", "Oğuz", "ornek09@example.edu", "2403003", "1240300300000", "BSM-L", 1.45m, 3, false, 2024),
+            ("Nehir", "Kızıl", "ornek10@example.edu", "2204001", "1220400100000", "EM-L", 2.80m, 7, false, 2022),
+            ("Doruk", "Göker", "ornek11@example.edu", "2504002", "1250400200000", "EM-L", 1.75m, 1, false, 2025),
+            ("Serra", "Candemir", "ornek12@example.edu", "2304003", "1230400300000", "EM-L", 1.55m, 5, false, 2023),
+            ("Görkem", "Dursun", "ornek13@example.edu", "2205001", "1220500100000", "EEM-L", 3.30m, 7, false, 2022),
+            ("Ilgın", "Demir", "ornek14@example.edu", "2405002", "1240500200000", "EEM-L", 1.95m, 3, false, 2024),
+            ("Bilal", "Kara", "ornek15@example.edu", "2305003", "1230500300000", "EEM-L", 1.60m, 5, false, 2023),
+            ("Vildan", "Aksoy", "ornek16@example.edu", "2306001", "1230600100000", "YM-L", 2.70m, 5, false, 2023),
+            ("Yunus", "Serdar", "ornek17@example.edu", "2506002", "1250600200000", "YM-L", 1.85m, 1, false, 2025),
+            ("Hande", "Alkan", "ornek18@example.edu", "2406003", "1240600300000", "YM-L", 1.50m, 3, false, 2024),
         };
 
         var existingByProgram = existingStudents
@@ -213,13 +224,13 @@ public static partial class SeedData
                         lastName = Surnames[rng.Next(Surnames.Length)];
                         studentNum = $"{entryYear % 100:D2}{Array.IndexOf(programDistribution.Select(p => p.ProgCode).ToArray(), progCode):D1}{progSeqNo:D4}";
                         nationalId = $"{1000000000000 + globalStudentIndex + 18}";
-                        email = $"ogrenci{globalStudentIndex + 1}@ankarabilim.edu.tr";
+                        email = $"ogrenci{globalStudentIndex + 1:D4}@example.edu";
                         isScholar = globalStudentIndex % 10 == 0;
                     }
 
                     globalStudentIndex++;
 
-                    var user = await EnsureUserAsync(userManager, email, firstName, lastName, "Ogrenci123!", "Student");
+                    var user = await EnsureUserAsync(userManager, email, firstName, lastName, DemoParolasi, "Student");
                     if (!context.Students.Any(st => st.UserId == user.Id || st.NationalId == nationalId || st.StudentNumber == studentNum))
                     {
                         var advisor = deptInstructors[advisorIdx % deptInstructors.Count];
