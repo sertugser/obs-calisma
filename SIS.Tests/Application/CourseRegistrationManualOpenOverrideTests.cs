@@ -216,7 +216,7 @@ public class CourseRegistrationManualOpenOverrideTests : IDisposable
         var validationService = new RegistrationValidationService(_context, _clock);
         var settingsProvider = new WebModuleSettingsProvider(_context, _memoryCache, _clock);
         var controlService = new WebModuleControlService(_context, settingsProvider, _clock, new SabitKurumSaatDilimi("Etc/UTC"), NullLogger<WebModuleControlService>.Instance);
-        return new CourseRegistrationService(_context, validationService, _clock, webSettings: settingsProvider, webModuleControls: controlService);
+        return new CourseRegistrationService(_context, validationService, _clock, new SabitKurumSaatDilimi("Etc/UTC"), webSettings: settingsProvider, webModuleControls: controlService);
     }
 
     private void SeedBaseData()

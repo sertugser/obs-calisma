@@ -6,6 +6,7 @@ using SIS.Domain.Entities;
 using SIS.Domain.Enums;
 using SIS.Infrastructure.Persistence;
 using SIS.Infrastructure.Services;
+using SIS.Tests.TestDoubles;
 
 namespace SIS.Tests.Application;
 
@@ -36,7 +37,7 @@ public class AdvisorConstraintRegistrationTests : IDisposable
         var clock = new FakeClock();
         var validationService = new RegistrationValidationService(_context, clock);
         var constraintService = new AdvisorConstraintService(_context);
-        _service = new CourseRegistrationService(_context, validationService, clock, advisorConstraintService: constraintService);
+        _service = new CourseRegistrationService(_context, validationService, clock, new SabitKurumSaatDilimi("Etc/UTC"), advisorConstraintService: constraintService);
     }
 
     [Fact]

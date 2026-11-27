@@ -1,11 +1,13 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
+using SIS.Application.Common.Services;
 using SIS.Application.Common.Time;
 using SIS.Application.CourseRegistration.DTOs;
 using SIS.Domain.Entities;
 using SIS.Domain.Enums;
 using SIS.Infrastructure.Persistence;
 using SIS.Infrastructure.Services;
+using SIS.Infrastructure.Services.Time;
 
 namespace SIS.Tests.Postgres.DersKaydi;
 
@@ -64,7 +66,8 @@ internal sealed class DersKaydiVeriKurucu(PostgresFixture fixture)
 
     /// <summary>Verilen context'le gerçek doğrulama ve kayıt servisleri üzerinden tek şubelik gönderim.</summary>
     public Task<RegistrationResponseDto> GonderAsync(AppDbContext db, int ogrenciId, int subeId) =>
-        new CourseRegistrationService(db, new RegistrationValidationService(db, new SabitSaat()), new SabitSaat())
+        new CourseRegistrationService(db, new RegistrationValidationService(db, new SabitSaat()), new SabitSaat(),
+                new InstitutionTimeZoneProvider(new NullSystemConfigProvider()))
             .SubmitRegistrationAsync(ogrenciId, new RegistrationSubmitDto { CourseSectionIds = [subeId] });
 
     /// <summary>Verilen kesiciyi taşıyan ayrı bir context.</summary>
