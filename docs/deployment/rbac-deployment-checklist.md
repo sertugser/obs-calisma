@@ -67,8 +67,8 @@ Beklenen: **5 satır** dönmeli.
 
 API process'i restart edilir. İlk açılışta `SeedData.SeedAsync` orchestrator otomatik çağrılır → 3 RBAC seed sırayla çalışır:
 1. Sistem kataloğu (`SistemKatalogu.EsitleAsync`) — roller ve izinler; eksik olanı ekler (~255 key)
-2. `MenuStructureSeed.SeedAsync` — idempotent (13 modül + 75 item)
-3. `RolePermissionSeed.SeedAsync` — idempotent (~365 satır, 6 rol)
+2. Menü kataloğu (`MenuKatalogu.EsitleAsync`) — 18 modül + 74 öğe; eksik olanı ekler, yöneticinin sildiğini geri getirmez
+3. Rol-izin kataloğu (`RolIzinKatalogu.EsitleAsync`) — 432 atama, 6 rol; eksik olanı ekler, kaldırılanı geri getirmez
 
 **Not:** Mevcut `SeedData` zinciri büyük (Faculties, Students, Courses, vb. seed'leri); production'da bu seed'ler genelde development-only ile koşullu çalışır (Program.cs `app.Environment.IsDevelopment()` check). Production deploy sonrası RBAC seed'leri **manuel script** ile çalıştırmak gerekebilir — `dotnet ef`'in seed entegrasyonu yok, manuel `dotnet run --seed-only` veya admin endpoint ile tetiklenir.
 
