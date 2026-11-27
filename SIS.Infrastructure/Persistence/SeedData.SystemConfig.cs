@@ -72,6 +72,7 @@ public static partial class SeedData
             new() { Key = "Security.PasswordRotationEnabled", Value = "true", Category = "Security", DataType = "bool", Description = "Kullanıcı şifreleri periyodik olarak değiştirmeye zorlanır mı?" },
             new() { Key = "Security.PasswordRotationMonths", Value = "6", Category = "Security", DataType = "int", Description = "Şifre değiştirme periyodu (ay)" },
             new() { Key = "Localization.DefaultLanguage", Value = "tr-TR", Category = "Localization", DataType = "string", Description = "Sistem varsayılan arayüz dili" },
+            new() { Key = "Institution.TimeZone", Value = "Etc/UTC", Category = "Localization", DataType = "string", Description = "Kurumun saat dilimi (IANA adı, ör. Etc/UTC). Takvim günü olarak girilen son günlerin bittiği anı belirler." },
 
             // ── Akademisyen / Başvuru Master Anahtarları ─────────
             new() { Key = "Instructor.StudentContactInfoVisible", Value = "true", Category = "Instructor", DataType = "bool", Description = "Akademisyen ekranlarında öğrenci e-posta ve GSM bilgileri gösterilsin mi?" },

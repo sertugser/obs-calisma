@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using SIS.API.Authorization;
 using SIS.Application.Common.Services;
+using SIS.Application.Common.Time;
 using SIS.Infrastructure.Persistence;
 
 namespace SIS.API.Controllers;
@@ -119,6 +120,7 @@ public class SystemConfigController(AppDbContext context, ISystemConfigProvider 
         ["Withdrawal.MaxCount.Undergraduate"] = new("Lisans öğrencisi toplam dersten çekilme hakkı", "registration-controls", "Ders Kayıt Kontrolleri", 70),
         ["Withdrawal.MaxCount.Associate"] = new("Önlisans öğrencisi toplam dersten çekilme hakkı", "registration-controls", "Ders Kayıt Kontrolleri", 80),
         ["Localization.DefaultLanguage"] = new("Sistem varsayılan dili", "general", "Genel", 20, LanguageOptions),
+        [InstitutionTimeZoneValidator.ConfigKey] = new("Kurum saat dilimi (IANA)", "general", "Genel", 25),
         ["Security.PasswordRotationEnabled"] = new("Kullanıcıları periyodik şifre değişimine zorla", "general", "Genel", 30),
         ["Security.PasswordRotationMonths"] = new("Şifre değiştirme periyodu (ay)", "general", "Genel", 40),
         ["Audit.RetentionDays"] = new("Denetim kayıtlarını saklama süresi (gün)", "general", "Genel", 50),
@@ -493,6 +495,15 @@ public class SystemConfigController(AppDbContext context, ISystemConfigProvider 
                 {
                     error = "Metin değerleri en fazla 500 karakter olabilir.";
                     return false;
+                }
+
+                if (string.Equals(key, InstitutionTimeZoneValidator.ConfigKey, StringComparison.OrdinalIgnoreCase))
+                {
+                    if (!InstitutionTimeZoneValidator.TryResolve(rawValue.Trim(), out var timeZone, out error))
+                        return false;
+
+                    normalizedValue = timeZone.Id;
+                    return true;
                 }
 
                 if (DateKeys.Contains(key))

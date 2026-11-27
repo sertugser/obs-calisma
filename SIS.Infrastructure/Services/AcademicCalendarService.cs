@@ -9,6 +9,7 @@ using SIS.Domain.Enums;
 using SIS.Domain.ValueObjects;
 using SIS.Infrastructure.Persistence;
 using SIS.Infrastructure.Services.CalendarGenerator;
+using SIS.Infrastructure.Services.Time;
 
 namespace SIS.Infrastructure.Services;
 
@@ -23,11 +24,13 @@ public class AcademicCalendarService : IAcademicCalendarService
 
     private readonly AppDbContext _ctx;
     private readonly IDateTimeProvider _clock;
+    private readonly IInstitutionTimeZoneProvider _institutionTimeZone;
 
-    public AcademicCalendarService(AppDbContext ctx, IDateTimeProvider clock)
+    public AcademicCalendarService(AppDbContext ctx, IDateTimeProvider clock, IInstitutionTimeZoneProvider? institutionTimeZone = null)
     {
         _ctx   = ctx;
         _clock = clock;
+        _institutionTimeZone = institutionTimeZone ?? new InstitutionTimeZoneProvider(new SIS.Application.Common.Services.NullSystemConfigProvider());
     }
 
     // ── Admin ─────────────────────────────────────────────────────────
@@ -42,7 +45,7 @@ public class AcademicCalendarService : IAcademicCalendarService
         if (term.AcademicCalendar is null)
             return null;
 
-        return ToDto(term, term.AcademicCalendar);
+        return ToDto(term, term.AcademicCalendar, await _institutionTimeZone.GetAsync(ct));
     }
 
     public async Task<AcademicCalendarDto> UpsertAsync(int termId, UpsertAcademicCalendarDto dto, CancellationToken ct = default)
@@ -81,7 +84,7 @@ public class AcademicCalendarService : IAcademicCalendarService
         }
 
         await _ctx.SaveChangesAsync(ct);
-        return ToDto(term, term.AcademicCalendar!);
+        return ToDto(term, term.AcademicCalendar!, await _institutionTimeZone.GetAsync(ct));
     }
 
     public async Task UpdatePhaseOverrideAsync(int termId, UpdateCalendarPhaseOverrideDto dto, CancellationToken ct = default)
@@ -143,7 +146,7 @@ public class AcademicCalendarService : IAcademicCalendarService
         }
 
         await _ctx.SaveChangesAsync(ct);
-        return BuildStudentDto(term, _clock.UtcNow);
+        return BuildStudentDto(term, _clock.UtcNow, await _institutionTimeZone.GetAsync(ct));
     }
 
     public async Task<StudentAcademicCalendarDto> PreviewEventMoveAsync(int termId, int eventId, PreviewTermCalendarEventMoveDto dto, CancellationToken ct = default)
@@ -163,7 +166,7 @@ public class AcademicCalendarService : IAcademicCalendarService
         if (term.AcademicCalendar is not null)
             SyncAcademicCalendarFromEvents(term);
 
-        return BuildStudentDto(term, _clock.UtcNow);
+        return BuildStudentDto(term, _clock.UtcNow, await _institutionTimeZone.GetAsync(ct));
     }
 
     public async Task<IReadOnlyList<StudentAcademicCalendarDto>> SaveEventChangesAsync(SaveAcademicCalendarChangesDto dto, CancellationToken ct = default)
@@ -180,6 +183,7 @@ public class AcademicCalendarService : IAcademicCalendarService
         if (terms.Count != termIds.Count)
             throw new KeyNotFoundException("Kaydedilecek donemlerden biri bulunamadi.");
 
+        var institutionTimeZone = await _institutionTimeZone.GetAsync(ct);
         await using var tx = _ctx.Database.ProviderName == "Microsoft.EntityFrameworkCore.InMemory"
             ? null
             : await _ctx.Database.BeginTransactionAsync(ct);
@@ -210,7 +214,7 @@ public class AcademicCalendarService : IAcademicCalendarService
             if (tx is not null)
                 await tx.CommitAsync(ct);
 
-            return terms.OrderBy(t => t.TermStart).Select(t => BuildStudentDto(t, now)).ToList();
+            return terms.OrderBy(t => t.TermStart).Select(t => BuildStudentDto(t, now, institutionTimeZone)).ToList();
         }
         catch
         {
@@ -333,7 +337,7 @@ public class AcademicCalendarService : IAcademicCalendarService
         if (term is null)
             return null;
 
-        return BuildStudentDto(term, _clock.UtcNow);
+        return BuildStudentDto(term, _clock.UtcNow, await _institutionTimeZone.GetAsync(ct));
     }
 
     public async Task<StudentAcademicCalendarDto?> GetActiveStudentViewAsync(bool includeAllEvents = false, CancellationToken ct = default)
@@ -350,7 +354,7 @@ public class AcademicCalendarService : IAcademicCalendarService
         if (term is null)
             return null;
 
-        return BuildStudentDto(term, now);
+        return BuildStudentDto(term, now, await _institutionTimeZone.GetAsync(ct));
     }
 
     // ── Helpers ───────────────────────────────────────────────────────
@@ -1224,7 +1228,7 @@ public class AcademicCalendarService : IAcademicCalendarService
         return count;
     }
 
-    private AcademicCalendarDto ToDto(AcademicTerm term, TermAcademicCalendar cal)
+    private AcademicCalendarDto ToDto(AcademicTerm term, TermAcademicCalendar cal, TimeZoneInfo institutionTimeZone)
     {
         var now = _clock.UtcNow;
         return new AcademicCalendarDto(
@@ -1246,14 +1250,14 @@ public class AcademicCalendarService : IAcademicCalendarService
             GradeEntryOverride:  cal.GradeEntryOverride,
             IsRegistrationOpen:  term.IsRegistrationOpen(now),
             IsAddDropOpen:       term.IsAddDropOpen(now),
-            IsWithdrawalOpen:    term.IsWithdrawalOpen(now),
+            IsWithdrawalOpen:    term.IsWithdrawalOpen(now, institutionTimeZone),
             IsGradeEntryOpen:    term.IsGradeEntryOpen(now),
             CreatedAt:           cal.CreatedAt,
             UpdatedAt:           cal.UpdatedAt
         );
     }
 
-    private static StudentAcademicCalendarDto BuildStudentDto(AcademicTerm term, DateTime now)
+    private static StudentAcademicCalendarDto BuildStudentDto(AcademicTerm term, DateTime now, TimeZoneInfo institutionTimeZone)
     {
         var cal = term.AcademicCalendar;
 
@@ -1291,7 +1295,7 @@ public class AcademicCalendarService : IAcademicCalendarService
             GradeEntryEnd:     cal?.GradeEntryEnd,
             IsRegistrationOpen: term.IsRegistrationOpen(now),
             IsAddDropOpen:      term.IsAddDropOpen(now),
-            IsWithdrawalOpen:   term.IsWithdrawalOpen(now),
+            IsWithdrawalOpen:   term.IsWithdrawalOpen(now, institutionTimeZone),
             IsGradeEntryOpen:   term.IsGradeEntryOpen(now),
             Events:            events
         );
