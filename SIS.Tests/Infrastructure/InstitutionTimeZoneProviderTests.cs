@@ -47,7 +47,9 @@ public sealed class InstitutionTimeZoneProviderTests
     {
         Yaz(deger);
         var hata = await Assert.ThrowsAsync<InstitutionTimeZoneConfigurationException>(() => _saglayici.GetAsync());
-        Assert.Contains("Sistem Ayarları", hata.Message);
+        Assert.Contains("Sistem Ayarları", hata.Detail);
+        // İleti her yolda dışarı gidebilir: kayıtlı değer ve ayar yolu yalnız ayrıntıda.
+        Assert.Equal(InstitutionTimeZoneConfigurationException.PublicMessage, hata.Message);
     }
 
     [Fact]

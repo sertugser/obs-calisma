@@ -124,6 +124,8 @@ public class C06_CekilmeKapisiTests
         var cekilme = liste.Single(m => m.Code == "student-withdrawal");
         Assert.Equal((false, "Ayar Hatası"), (cekilme.IsCurrentlyOpen, cekilme.EffectiveStateLabel));
         Assert.Contains("Kurum saat dilimi ayarı geçersiz", cekilme.EffectiveMessage);
+        Assert.Contains("'Mars/Olympus'", cekilme.EffectiveMessage);
+        Assert.Contains("Sistem Ayarları > Genel", cekilme.EffectiveMessage);
         Assert.True(liste.Single(m => m.Code == "student-course-registration").IsCurrentlyOpen);
         Assert.True((await Kapi(o, bozuk).EvaluateAsync("student-course-registration")).IsOpen);
         foreach (var kod in new[] { "student-add-drop", "midterm-grade-entry", "final-grade-entry" })
@@ -135,6 +137,16 @@ public class C06_CekilmeKapisiTests
         Assert.Equal(("WebModuleWithdrawalClosed", "Dersten çekilme şu anda kullanılamıyor. Lütfen öğrenci işlerine başvurun."), (hata.Rule, hata.Message));
         gunluk.Verify(l => l.Log(LogLevel.Warning, It.IsAny<EventId>(), It.Is<It.IsAnyType>((v, _) => v.ToString()!.Contains("Mars/Olympus")),
             It.IsAny<Exception?>(), It.IsAny<Func<It.IsAnyType, Exception?, string>>()), Times.AtLeastOnce);
+    }
+
+    // Bozuk ayar ekle-bırağı kapatmaz: penceresi açıkken (25 Mart) açık kalır.
+    [Fact]
+    public async Task BozukSaatDilimi_AcikEkleBirakKapisiAcikKalir()
+    {
+        using var o = Ortam();
+        o.Saat.UtcNow = Utc("2025-03-25T12:00:00Z");
+
+        Assert.True((await Kapi(o, BozukDilim(o)).EvaluateAsync("student-add-drop")).IsOpen);
     }
 
     // Yalnız geçersiz ayar "Ayar Hatası"dır; sağlayıcının başka bir hatası (ör. kapatılmış bağlam) yutulmaz.
@@ -151,12 +163,17 @@ public class C06_CekilmeKapisiTests
 
     // Dönemde çekilme olayı yoksa (takvim satırı olsa bile) kapı eskisi gibi "Takvim Eksik" ile kapalıdır. Olay varsa karar
     // olayın tarihinden değil kuraldandır: 1 Nisan'da tek günlük olay (10 Mayıs) etkin değil, kapı yine açık.
+    // Yönetici zorlaması açıkça verilmişse olaysız dönemde de o geçerlidir.
     [Theory]
-    [InlineData(false, false, "Takvim Eksik")]
-    [InlineData(true, true, "Açık")]
-    public async Task CekilmeOlayiYoksa_KapiKapali_VarsaKural(bool olay, bool acik, string etiket)
+    [InlineData(false, null, false, "Takvim Eksik")]
+    [InlineData(true, null, true, "Açık")]
+    [InlineData(false, true, true, "Açık")]
+    [InlineData(false, false, false, "Takvime Bağlı")]
+    public async Task CekilmeOlayiYoksa_KapiKapali_VarsaKural(bool olay, bool? zorlama, bool acik, string etiket)
     {
         using var o = Ortam(cekilmeOlayi: olay);
+        o.EtkinDonem.AcademicCalendar!.WithdrawalOverride = zorlama;
+        o.Db.SaveChanges();
         o.Saat.UtcNow = Utc("2025-04-01T12:00:00Z");
 
         var sonuc = await Kapi(o, Istanbul).EvaluateAsync("student-withdrawal");
