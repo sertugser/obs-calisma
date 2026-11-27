@@ -62,10 +62,23 @@ internal sealed class DersKaydiVeriKurucu(PostgresFixture fixture)
         })).Id;
     }
 
-    /// <summary>Verilen context'le gerçek doğrulama ve kayıt servisleri üzerinden tek şubelik gönderim.</summary>
-    public Task<RegistrationResponseDto> GonderAsync(AppDbContext db, int ogrenciId, int subeId) =>
+    /// <summary>Verilen context'le gerçek doğrulama ve kayıt servisleri üzerinden verilen şubelere gönderim.</summary>
+    public Task<RegistrationResponseDto> GonderAsync(AppDbContext db, int ogrenciId, params int[] subeIdleri) =>
         new CourseRegistrationService(db, new RegistrationValidationService(db, new SabitSaat()), new SabitSaat())
-            .SubmitRegistrationAsync(ogrenciId, new RegistrationSubmitDto { CourseSectionIds = [subeId] });
+            .SubmitRegistrationAsync(ogrenciId, new RegistrationSubmitDto { CourseSectionIds = [.. subeIdleri] });
+
+    /// <summary>Verilen durumda bir kayıt satırı, kendi context'iyle; şube mevcuduna dokunmaz.</summary>
+    public async Task<int> KayitEkleAsync(int ogrenciId, int subeId, RegistrationStatus durum) =>
+        (await KaydetAsync(new CourseRegistration { StudentId = ogrenciId, CourseSectionId = subeId, Status = durum, CreatedAt = Simdi })).Id;
+
+    /// <summary>Şubedeki kayıt satırları (Id, öğrenci, durum), yeni bir context'le.</summary>
+    public async Task<(int, int, RegistrationStatus)[]> KayitSatirlariAsync(int subeId)
+    {
+        await using var db = fixture.YeniContext();
+        var kayitlar = await db.CourseRegistrations.Where(r => r.CourseSectionId == subeId)
+            .OrderBy(r => r.Id).Select(r => new { r.Id, r.StudentId, r.Status }).ToListAsync();
+        return kayitlar.Select(r => (r.Id, r.StudentId, r.Status)).ToArray();
+    }
 
     /// <summary>Verilen kesiciyi taşıyan ayrı bir context.</summary>
     public AppDbContext KesiciliContext(ArayaGirenKesici kesici) =>
