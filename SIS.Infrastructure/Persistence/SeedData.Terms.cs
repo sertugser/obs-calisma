@@ -8,7 +8,7 @@ namespace SIS.Infrastructure.Persistence;
 
 public static partial class SeedData
 {
-    private static async Task SeedTermsAndClassroomsAsync(AppDbContext context)
+    private static async Task SeedTermsAsync(AppDbContext context)
     {
         // Academic Terms
         if (!context.AcademicTerms.Any())
@@ -78,7 +78,11 @@ public static partial class SeedData
                 timeZoneConfig.Value = "Europe/Istanbul";
             await context.SaveChangesAsync();
         }
+    }
 
+    // Derslikler kurum verisidir (Kurum/YerelKurumVeriKaynagi).
+    internal static async Task SeedClassroomsAsync(AppDbContext context)
+    {
         // Classrooms
         if (!context.Classrooms.Any())
         {
