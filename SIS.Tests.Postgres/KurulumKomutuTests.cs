@@ -91,6 +91,50 @@ public sealed class KurulumKomutuTests(PostgresFixture fixture) : IAsyncLifetime
         Assert.Equal(0, await db.CourseRegistrations.CountAsync());
     }
 
+    [Fact]
+    public async Task KurumVerisiYalnizKurumBayragiyla_CekirdekteBesAcmaNedeni()
+    {
+        await using var uygulama = new SisUygulamasi(fixture.BaglantiCumlesi);
+
+        Assert.Equal(0, await KurAsync(uygulama, "yonetici@example.edu", RastgeleParola()));
+        await using (var db = fixture.YeniContext())
+        {
+            Assert.Equal(5, await db.CurriculumCourseOpeningReasons.CountAsync());
+            Assert.Equal(0, await db.Classrooms.CountAsync());
+        }
+
+        Assert.Equal(0, await KurulumCalistirici.CalistirAsync(
+            uygulama.Services,
+            new KurulumSecenekleri(DemoVerisi: false, "yonetici@example.edu", RastgeleParola(), Kurum: "yerel"),
+            NullLogger.Instance));
+
+        await using var kontrol = fixture.YeniContext();
+        Assert.True(await kontrol.Faculties.AnyAsync());
+        Assert.True(await kontrol.Courses.AnyAsync());
+        Assert.True(await kontrol.Classrooms.AnyAsync());
+        Assert.Equal(0, await kontrol.Students.CountAsync());
+        Assert.Equal(21, await kontrol.CurriculumCourseOpeningReasons.CountAsync());
+    }
+
+    [Fact]
+    public async Task BilinmeyenKurum_KurulumDurur()
+    {
+        await using var uygulama = new SisUygulamasi(fixture.BaglantiCumlesi);
+
+        Assert.Equal(1, await KurulumCalistirici.CalistirAsync(
+            uygulama.Services,
+            new KurulumSecenekleri(DemoVerisi: false, "yonetici@example.edu", RastgeleParola(), Kurum: "olmayan"),
+            NullLogger.Instance));
+    }
+
+    [Fact]
+    public void Argumanlar_KurumAdiniOkur()
+    {
+        var s = KurulumSecenekleri.Oku(["setup", "--kurum", "yerel", "--seed-demo"], _ => null);
+        Assert.Equal(("yerel", true), (s.Kurum, s.DemoVerisi));
+        Assert.Null(KurulumSecenekleri.Oku(["setup"], _ => null).Kurum);
+    }
+
     private static Task<int> KurAsync(SisUygulamasi uygulama, string eposta, string? parola) =>
         KurulumCalistirici.CalistirAsync(
             uygulama.Services,

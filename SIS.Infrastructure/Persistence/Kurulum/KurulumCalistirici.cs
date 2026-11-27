@@ -7,19 +7,24 @@ using SIS.Application.Common.Time;
 namespace SIS.Infrastructure.Persistence.Kurulum;
 
 // `SIS.API setup [--seed-demo]` komutunun seçenekleri.
-public sealed record KurulumSecenekleri(bool DemoVerisi, string? YoneticiEposta, string? YoneticiParola)
+public sealed record KurulumSecenekleri(bool DemoVerisi, string? YoneticiEposta, string? YoneticiParola, string? Kurum = null)
 {
     public const string Komut = "setup";
     public const string DemoBayragi = "--seed-demo";
+    public const string KurumBayragi = "--kurum";
     public const string EpostaDegiskeni = "SIS_SETUP_ADMIN_EMAIL";
     public const string ParolaDegiskeni = "SIS_SETUP_ADMIN_PASSWORD";
 
     public static bool KurulumKomutuMu(string[] args) => args.Length > 0 && args[0] == Komut;
 
-    public static KurulumSecenekleri Oku(string[] args, Func<string, string?> ortamDegiskeni) =>
-        new(args.Skip(1).Contains(DemoBayragi),
+    public static KurulumSecenekleri Oku(string[] args, Func<string, string?> ortamDegiskeni)
+    {
+        var kurumYeri = Array.IndexOf(args, KurumBayragi);
+        return new(args.Skip(1).Contains(DemoBayragi),
             ortamDegiskeni(EpostaDegiskeni),
-            ortamDegiskeni(ParolaDegiskeni));
+            ortamDegiskeni(ParolaDegiskeni),
+            kurumYeri > 0 && kurumYeri + 1 < args.Length ? args[kurumYeri + 1] : null);
+    }
 }
 
 // Boş ya da var olan bir veritabanını kullanıma hazırlar: migration, sistem verisi, ilk yönetici,
@@ -55,6 +60,15 @@ public static class KurulumCalistirici
             gunluk.LogInformation(olustu
                 ? "Kurulum: ilk yönetici oluşturuldu."
                 : "Kurulum: yönetici zaten var, dokunulmadı.");
+
+            if (secenekler.Kurum is not null)
+            {
+                adim = "kurum verisi";
+                var kaynak = Kurum.KurumVeriKaynaklari.Bul(secenekler.Kurum);
+                await AdimdaCalistirAsync(servisler, async sp =>
+                    await kaynak.YazAsync(sp.GetRequiredService<AppDbContext>(), ct), ct);
+                gunluk.LogInformation("Kurulum: '{Kurum}' kurum verisi yazıldı.", kaynak.Ad);
+            }
 
             if (secenekler.DemoVerisi)
             {
