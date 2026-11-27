@@ -92,6 +92,24 @@ public sealed class KurulumKomutuTests(PostgresFixture fixture) : IAsyncLifetime
         Assert.Equal("Etc/UTC", await db.SystemConfigs.Where(c => c.Key == "Institution.TimeZone").Select(c => c.Value).SingleAsync());
     }
 
+    // Bilinen sınır: saat dilimi anahtarı düz kurulumda yazıldığı için sonraki örnek veri kurulumu onu
+    // yöneticinin değeri sayar ve İstanbul'a çekmez.
+    [Fact]
+    public async Task DuzKurulumdanSonraOrnekVeriyleKurulum_SaatDilimiEtcUtcKalir()
+    {
+        await using var uygulama = new SisUygulamasi(fixture.BaglantiCumlesi);
+        Assert.Equal(0, await KurAsync(uygulama, "yonetici@example.edu", RastgeleParola()));
+
+        Assert.Equal(0, await KurulumCalistirici.CalistirAsync(
+            uygulama.Services,
+            new KurulumSecenekleri(DemoVerisi: true, "yonetici@example.edu", RastgeleParola()),
+            NullLogger.Instance));
+
+        await using var db = fixture.YeniContext();
+        Assert.True(await db.AcademicTerms.AnyAsync()); // örnek veri yazıldı
+        Assert.Equal("Etc/UTC", await db.SystemConfigs.Where(c => c.Key == "Institution.TimeZone").Select(c => c.Value).SingleAsync());
+    }
+
     [Fact]
     public async Task KurumVerisiYalnizKurumBayragiyla_CekirdekteBesAcmaNedeni()
     {
