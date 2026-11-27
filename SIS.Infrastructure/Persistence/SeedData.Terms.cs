@@ -70,12 +70,6 @@ public static partial class SeedData
 
                 context.AcademicTerms.Add(term);
             }
-
-            // Demo verisinin ilk kurulumu: kurum saat dilimi hâlâ varsayılandaysa örnek kurumunkine çekilir.
-            // Bu blok yalnız dönem yokken çalışır; yöneticinin sonraki seçimi ezilmez.
-            var timeZoneConfig = await context.SystemConfigs.FirstOrDefaultAsync(c => c.Key == InstitutionTimeZoneValidator.ConfigKey);
-            if (timeZoneConfig?.Value == InstitutionTimeZoneValidator.DefaultId)
-                timeZoneConfig.Value = "Europe/Istanbul";
             await context.SaveChangesAsync();
         }
 

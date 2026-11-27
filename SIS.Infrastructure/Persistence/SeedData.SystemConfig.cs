@@ -29,7 +29,8 @@ public static partial class SeedData
         "Schedule.Candidate.MaxClassroomsPerType",
     ];
 
-    public static async Task SeedSystemConfigAsync(AppDbContext context)
+    // Kurum saat dilimi anahtarı bu çağrıda ilk kez eklendiyse true döner.
+    public static async Task<bool> SeedSystemConfigAsync(AppDbContext context)
     {
         var configs = new List<SystemConfig>
         {
@@ -241,9 +242,10 @@ public static partial class SeedData
             .ToList();
 
         if (missingConfigs.Count == 0)
-            return;
+            return false;
 
         context.SystemConfigs.AddRange(missingConfigs);
         await context.SaveChangesAsync();
+        return missingConfigs.Any(c => c.Key == InstitutionTimeZoneValidator.ConfigKey);
     }
 }
