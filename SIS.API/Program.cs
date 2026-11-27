@@ -353,10 +353,18 @@ var app = builder.Build();
 
 if (kurulumModu)
 {
-    Environment.ExitCode = await SIS.Infrastructure.Persistence.Kurulum.KurulumCalistirici.CalistirAsync(
-        app.Services,
-        SIS.Infrastructure.Persistence.Kurulum.KurulumSecenekleri.Oku(args, Environment.GetEnvironmentVariable),
-        app.Logger);
+    SIS.Infrastructure.Persistence.Kurulum.KurulumSecenekleri? secenekler = null;
+    try
+    {
+        secenekler = SIS.Infrastructure.Persistence.Kurulum.KurulumSecenekleri.Oku(args, Environment.GetEnvironmentVariable);
+    }
+    catch (ArgumentException ex)
+    {
+        app.Logger.LogError("Kurulum başlamadı: {Ileti}", ex.Message);
+        Environment.ExitCode = 1;
+    }
+    if (secenekler is not null)
+        Environment.ExitCode = await SIS.Infrastructure.Persistence.Kurulum.KurulumCalistirici.CalistirAsync(app.Services, secenekler, app.Logger);
     await app.DisposeAsync(); // konsol günlükçüsü kuyruktaki iletileri çıkmadan önce yazsın
     return;
 }

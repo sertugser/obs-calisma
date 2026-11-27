@@ -44,6 +44,8 @@ jobs:
 
   backend-coverage:
     name: Backend Coverage
+    # Actions dakikasını azaltmak için PR'da koşmaz; main'e push'ta ve elle koşar.
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     timeout-minutes: 40
 

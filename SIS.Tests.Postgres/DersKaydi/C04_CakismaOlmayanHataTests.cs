@@ -1,10 +1,8 @@
-using Microsoft.EntityFrameworkCore;
-using Npgsql;
 using SIS.Domain.Enums;
 
 namespace SIS.Tests.Postgres.DersKaydi;
 
-// C-04: kayıt işlemi içinde çakışma olmayan bir veritabanı hatası kontenjan hatasına çevrilmez; olduğu gibi yayılır.
+// C-04 / D25: aynı öğrencinin aynı şubeye ikinci gönderimi tekil dizine kadar gitmez; ön denetim anlamlı bir retle durdurur.
 [Collection(PostgresKoleksiyonu.Ad)]
 public sealed class C04_CakismaOlmayanHataTests(PostgresFixture fixture) : IAsyncLifetime
 {
@@ -14,9 +12,9 @@ public sealed class C04_CakismaOlmayanHataTests(PostgresFixture fixture) : IAsyn
 
     public Task DisposeAsync() => Task.CompletedTask;
 
-    // Aynı öğrencinin aynı şubeye ikinci gönderimi doğrulamayı geçer; ikinci kayıt satırı tekil dizine takılır.
+    // İkinci gönderim istisna atmaz: tek hata AlreadySubmitted, mevcut ve kayıt değişmez.
     [Fact]
-    public async Task C04_AyniOgrenciAyniSubeyeIkinciGonderim_TekilDizinHatasiYayilir_MevcutDegismez()
+    public async Task C04_AyniOgrenciAyniSubeyeIkinciGonderim_ZatenGonderildiIleReddedilir_MevcutDegismez()
     {
         var veri = await DersKaydiVeriKurucu.KurAsync(fixture);
         var sube = await veri.SubeEkleAsync(await veri.DersEkleAsync("DKY101"), kapasite: 2);
@@ -27,10 +25,11 @@ public sealed class C04_CakismaOlmayanHataTests(PostgresFixture fixture) : IAsyn
 
         await using (var db = fixture.YeniContext())
         {
-            var hata = await Assert.ThrowsAsync<DbUpdateException>(() => veri.GonderAsync(db, bir, sube));
-            var pg = Assert.IsType<PostgresException>(hata.InnerException);
-            Assert.Equal("23505", pg.SqlState);
-            Assert.Equal("IX_CourseRegistrations_StudentId_CourseSectionId", pg.ConstraintName);
+            var sonuc = await veri.GonderAsync(db, bir, sube);
+            Assert.False(sonuc.Success);
+            var hata = Assert.Single(sonuc.ValidationResult!.Errors);
+            Assert.Equal("AlreadySubmitted", hata.Rule);
+            Assert.Equal(sube, hata.CourseSectionId);
         }
         Assert.Equal(1, await veri.MevcutAsync(sube));
         Assert.Equal(new[] { (bir, Bekliyor) }, await veri.KayitlarAsync(sube));
