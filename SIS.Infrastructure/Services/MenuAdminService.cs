@@ -225,6 +225,10 @@ public class MenuAdminService : IMenuAdminService
         if (await _context.MenuItems.AnyAsync(mi => mi.ModuleId == dto.ModuleId && mi.Route == dto.Route, ct))
             throw new InvalidOperationException("Bu modülde aynı route'a sahip başka bir item var.");
 
+        // Öğe slug'ı veritabanında tekil (menü kataloğu öğeyi slug'la tanır).
+        if (await _context.MenuItems.AnyAsync(mi => mi.Slug == dto.Slug, ct))
+            throw new InvalidOperationException($"'{dto.Slug}' slug'ı zaten kullanılıyor.");
+
         var permissions = await ResolvePermissionsAsync(dto.PermissionKeys, ct);
         EnsureHasPermission(permissions);
 
