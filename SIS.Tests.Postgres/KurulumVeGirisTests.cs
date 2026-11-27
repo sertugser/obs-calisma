@@ -50,6 +50,28 @@ public sealed class KurulumVeGirisTests(PostgresFixture fixture) : IAsyncLifetim
         Assert.Equal(HttpStatusCode.OK, menu.StatusCode);
         using var menuGovde = JsonDocument.Parse(await menu.Content.ReadAsStringAsync());
         Assert.True(menuGovde.RootElement.GetArrayLength() > 0);
+
+        // Demo tohumu örnek kurumun saat dilimini atar; yönetici kaydı (bilerek kaydedilmiş Etc/UTC dahil) yeniden tohumda ezilmez.
+        Assert.Equal("Europe/Istanbul", await SaatDiliminiOkuAsync());
+        foreach (var kayitli in new[] { "Europe/Berlin", "Etc/UTC" })
+        {
+            await using (var db = fixture.YeniContext())
+            {
+                (await db.SystemConfigs.SingleAsync(c => c.Key == "Institution.TimeZone")).Value = kayitli;
+                await db.SaveChangesAsync();
+            }
+            using var kapsam = uygulama.Services.CreateScope();
+            await SeedData.SeedAsync(kapsam.ServiceProvider.GetRequiredService<AppDbContext>(),
+                kapsam.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>(),
+                kapsam.ServiceProvider.GetRequiredService<RoleManager<IdentityRole<int>>>());
+            Assert.Equal(kayitli, await SaatDiliminiOkuAsync());
+        }
+    }
+
+    private async Task<string> SaatDiliminiOkuAsync()
+    {
+        await using var db = fixture.YeniContext();
+        return await db.SystemConfigs.Where(c => c.Key == "Institution.TimeZone").Select(c => c.Value).SingleAsync();
     }
 
     [Fact]
