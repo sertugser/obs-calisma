@@ -128,10 +128,11 @@ public class AcademicTermPhaseTests
     }
 
     [Fact]
-    public void IsWithdrawalOpen_UsesTermStartAndWithdrawalDeadline()
+    public void IsWithdrawalOpen_UsesAddDropEndAndWithdrawalDeadline()
     {
         var term = BuildTerm();
-        term.IsWithdrawalOpen(term.TermStart.AddDays(1), TimeZoneInfo.Utc).Should().BeTrue();
+        term.IsWithdrawalOpen(term.TermStart.AddDays(1), TimeZoneInfo.Utc).Should().BeFalse(); // ekle-bırak sürüyor
+        term.IsWithdrawalOpen(term.AcademicCalendar!.AddDropEnd.AddDays(1), TimeZoneInfo.Utc).Should().BeTrue();
         term.IsWithdrawalOpen(term.AcademicCalendar!.WithdrawalDeadline.AddDays(1), TimeZoneInfo.Utc).Should().BeFalse();
         term.IsWithdrawalOpen(term.TermStart.AddDays(-1), TimeZoneInfo.Utc).Should().BeFalse();
     }

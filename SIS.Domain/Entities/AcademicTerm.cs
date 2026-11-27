@@ -76,11 +76,19 @@ public class AcademicTerm
         IsActive(now) && AcademicCalendar is { } cal &&
         (cal.AddDropOverride ?? (now >= cal.AddDropStart && now <= cal.AddDropEnd));
 
-    // Son gün (WithdrawalDeadline, takvim günü) kurumun yerel gününün sonuna kadar açıktır.
+    // Çekilme ekle-bırak döneminin son günü (AddDropEnd, takvim günü) kurumun yerel günü bitince açılır; dönem başından
+    // önce açılmaz (ekle-bırak bitişi boşsa ya da dönem başından önceyse dönem başı). Son gün (WithdrawalDeadline, takvim
+    // günü) kurumun yerel gününün sonuna kadar açıktır.
     public bool IsWithdrawalOpen(DateTime nowUtc, TimeZoneInfo institutionTimeZone) =>
         IsActive(nowUtc) && AcademicCalendar is { } cal &&
-        (cal.WithdrawalOverride ?? (nowUtc >= TermStart
+        (cal.WithdrawalOverride ?? (nowUtc >= WithdrawalStartUtc(cal, institutionTimeZone)
             && nowUtc < CalendarDayBoundary.EndUtc(cal.WithdrawalDeadline, institutionTimeZone)));
+
+    private DateTime WithdrawalStartUtc(TermAcademicCalendar cal, TimeZoneInfo institutionTimeZone)
+    {
+        var addDropOverUtc = CalendarDayBoundary.EndUtc(cal.AddDropEnd, institutionTimeZone);
+        return addDropOverUtc > TermStart ? addDropOverUtc : TermStart;
+    }
 
     public bool IsGradeEntryOpen(DateTime now) =>
         IsActive(now) && AcademicCalendar is { } cal &&

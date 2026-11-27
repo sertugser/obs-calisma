@@ -15,7 +15,7 @@ namespace SIS.Tests.API.DersKaydi;
 
 // Dersten çekilme modül kapısı, "Ak.Takvime Bağlı" (term-event-based) modunda dönemin çekilme kuralına
 // (AcademicTerm.IsWithdrawalOpen) bağlıdır. Veri tohumdaki gibidir: çekilme olayı tek günlük, bitişi boş,
-// 00:00 UTC; takvim özetindeki son gün (10 Mayıs) buna eşittir. Dönem 15 Şubat'ta başlar.
+// 00:00 UTC; takvim özetindeki son gün (10 Mayıs) buna eşittir. Dönem 15 Şubat'ta başlar; ekle-bırak 28 Mart'ta biter.
 public class C06_CekilmeKapisiTests
 {
     private static readonly SabitKurumSaatDilimi Istanbul = new("Europe/Istanbul");
@@ -52,17 +52,21 @@ public class C06_CekilmeKapisiTests
         return new InstitutionTimeZoneProvider(new SystemConfigProvider(o.Db, new MemoryCache(new MemoryCacheOptions())));
     }
 
-    // İstanbul (+03:00): son gün 11 Mayıs 00:00 yerel = 10 Mayıs 21:00Z'de biter. Etc/UTC: 11 Mayıs 00:00Z.
+    // İstanbul (+03:00): ekle-bırak 28 Mart 21:00Z'de, son gün 10 Mayıs 21:00Z'de biter. Etc/UTC: 29 Mart ve 11 Mayıs 00:00Z.
     [Theory]
     [InlineData("Europe/Istanbul", "2025-02-14T23:59:59Z", false)]
-    [InlineData("Europe/Istanbul", "2025-02-15T00:00:00Z", true)]
+    [InlineData("Europe/Istanbul", "2025-02-15T00:00:00Z", false)]
+    [InlineData("Europe/Istanbul", "2025-03-28T20:59:59Z", false)]
+    [InlineData("Europe/Istanbul", "2025-03-28T21:00:00Z", true)]
     [InlineData("Europe/Istanbul", "2025-05-09T21:00:00Z", true)]
     [InlineData("Europe/Istanbul", "2025-05-10T09:00:00Z", true)]
     [InlineData("Europe/Istanbul", "2025-05-10T20:59:59Z", true)]
     [InlineData("Europe/Istanbul", "2025-05-10T21:00:00Z", false)]
+    [InlineData("Etc/UTC", "2025-03-28T23:59:59Z", false)]
+    [InlineData("Etc/UTC", "2025-03-29T00:00:00Z", true)]
     [InlineData("Etc/UTC", "2025-05-10T23:59:59Z", true)]
     [InlineData("Etc/UTC", "2025-05-11T00:00:00Z", false)]
-    public async Task Kapi_DonemBasindanSonGunSonunaKadarAciktir(string dilim, string an, bool acik)
+    public async Task Kapi_EkleBirakSonrasindanSonGunSonunaKadarAciktir(string dilim, string an, bool acik)
     {
         using var o = Ortam();
         o.Saat.UtcNow = Utc(an);
@@ -72,8 +76,11 @@ public class C06_CekilmeKapisiTests
         Assert.Equal((acik, acik ? "Açık" : "Takvime Bağlı"), (sonuc.IsOpen, sonuc.EffectiveStateLabel));
     }
 
-    // Uçtan uca: tohumlanmış modla son gün 09:00Z'de çekilme kabul edilir, 21:00Z'de modül kapısında reddedilir.
+    // Uçtan uca: tohumlanmış modla ekle-bırak içinde (25 Mart) ve son gün 21:00Z'de modül kapısında reddedilir; ekle-bırak
+    // bittikten sonra (29 Mart) ve son gün 09:00Z'de kabul edilir.
     [Theory]
+    [InlineData("2025-03-25T12:00:00Z", false)]
+    [InlineData("2025-03-29T12:00:00Z", true)]
     [InlineData("2025-05-10T09:00:00Z", true)]
     [InlineData("2025-05-10T21:00:00Z", false)]
     public async Task Cekilme_SonGunKurumSaatiyleGunSonunaKadarKabulEdilir(string an, bool kabul)
@@ -87,11 +94,14 @@ public class C06_CekilmeKapisiTests
         Assert.Equal(kabul, y.Success);
         Assert.Equal(kabul ? RegistrationStatus.Withdrawn : RegistrationStatus.Active, o.Db.CourseRegistrations.Single(r => r.Id == a.Id).Status);
         if (!kabul)
-            Assert.Equal("WebModuleWithdrawalClosed", Assert.Single(y.ValidationResult!.Errors).Rule);
+            Assert.Equal(("WebModuleWithdrawalClosed", "Dersten çekilme penceresi şu anda açık değil."),
+                (Assert.Single(y.ValidationResult!.Errors).Rule, y.ValidationResult.Errors[0].Message));
     }
 
     // Öğrencinin gördüğü rozet (takvim DTO'su) ile kapı aynı anda aynı cevabı verir.
     [Theory]
+    [InlineData("2025-03-25T12:00:00Z", false)]
+    [InlineData("2025-03-29T12:00:00Z", true)]
     [InlineData("2025-05-09T12:00:00Z", true)]
     [InlineData("2025-05-10T20:30:00Z", true)]
     [InlineData("2025-05-10T21:30:00Z", false)]
