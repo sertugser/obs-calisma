@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.ChangeTracking;
 using SIS.Application.AdvisorConstraints.Services;
 using SIS.Application.CourseRegistration.DTOs;
 using SIS.Domain.Enums;
@@ -153,106 +154,126 @@ public partial class CourseRegistrationService
 
             // === KRİTİK BÖLGE: Serializable transaction + ders başına fresh kapasite kontrolü + increment ===
             // Çift sayımı önler (B2), kapasite kontrolünü tüm kayıt noktalarında zorunlu hale getirir (B3).
+            // Eşzamanlılık çakışması "kontenjan doldu" demek değildir: deneme geri alınır ve taze işlemle yinelenir (D23).
             var useTransaction = _context.Database.ProviderName != "Microsoft.EntityFrameworkCore.InMemory";
-            await using var tx = useTransaction
-                ? await _context.Database.BeginTransactionAsync(System.Data.IsolationLevel.Serializable)
-                : null;
-            try
+            var statusesBeforeAttempts = existingAny.ToDictionary(cr => cr.Id, cr => cr.Status);
+            // Geri sarma yalnız denemelerden önce izleyicide bekleyen değişiklik yokken güvenlidir.
+            var canRewind = useTransaction && !_context.ChangeTracker.HasChanges();
+            for (var attempt = 1; ; attempt++)
             {
-                foreach (var section in missingSections)
+                using var attemptChanges = new SubmitAttemptChanges(_context.ChangeTracker);
+                var commitAttempted = false;
+                await using var tx = useTransaction
+                    ? await _context.Database.BeginTransactionAsync(System.Data.IsolationLevel.Serializable)
+                    : null;
+                try
                 {
-                    // Tek kaynak: SeatLedger taze kapasite kontrolü + (cross-list grubu dahil) rezervasyon.
-                    if (!await SeatLedger.TryReserveAsync(_context, section))
+                    foreach (var section in missingSections)
                     {
-                        if (tx != null) await tx.RollbackAsync();
-                        var effective = await SeatLedger.GetEffectiveEnrolledAsync(_context, section);
-                        response.Success = false;
-                        response.ValidationResult = new ValidationResultDto
+                        // Tek kaynak: SeatLedger taze kapasite kontrolü + (cross-list grubu dahil) rezervasyon.
+                        if (!await SeatLedger.TryReserveAsync(_context, section))
                         {
-                            IsValid = false,
-                            Errors = new List<ValidationError>
+                            if (tx != null) await tx.RollbackAsync();
+                            var effective = await SeatLedger.GetEffectiveEnrolledAsync(_context, section);
+                            response.Success = false;
+                            response.ValidationResult = new ValidationResultDto
                             {
-                                new() { Rule = "Capacity", Message = $"'{section.Course.Code} {section.Course.Name}' dersinin kontenjanı bu esnada doldu ({effective}/{section.Capacity}).", CourseSectionId = section.Id }
-                            }
-                        };
-                        return response;
-                    }
+                                IsValid = false,
+                                Errors = new List<ValidationError>
+                                {
+                                    new() { Rule = "Capacity", Message = $"'{section.Course.Code} {section.Course.Name}' dersinin kontenjanı bu esnada doldu ({effective}/{section.Capacity}).", CourseSectionId = section.Id }
+                                }
+                            };
+                            return response;
+                        }
 
-                    Domain.Entities.CourseRegistration reg;
-                    if (existingByDropped.TryGetValue(section.Id, out var droppedReg))
-                    {
-                        // Reactivate — yeni kayıt oluşturmak unique constraint'i kırardı
-                        droppedReg.Status = RegistrationStatus.Draft;
-                        droppedReg.UpdatedAt = DateTime.UtcNow;
-                        reg = droppedReg;
-                    }
-                    else
-                    {
-                        reg = new Domain.Entities.CourseRegistration
+                        Domain.Entities.CourseRegistration reg;
+                        if (existingByDropped.TryGetValue(section.Id, out var droppedReg))
                         {
-                            StudentId = studentId,
-                            CourseSectionId = section.Id,
-                            Status = RegistrationStatus.Draft,
-                            CreatedAt = DateTime.UtcNow
-                        };
-                        _context.CourseRegistrations.Add(reg);
+                            // Reactivate — yeni kayıt oluşturmak unique constraint'i kırardı
+                            droppedReg.Status = RegistrationStatus.Draft;
+                            droppedReg.UpdatedAt = DateTime.UtcNow;
+                            reg = droppedReg;
+                        }
+                        else
+                        {
+                            reg = new Domain.Entities.CourseRegistration
+                            {
+                                StudentId = studentId,
+                                CourseSectionId = section.Id,
+                                Status = RegistrationStatus.Draft,
+                                CreatedAt = DateTime.UtcNow
+                            };
+                            _context.CourseRegistrations.Add(reg);
+                        }
+
+                        // Madde 6 tamamlama: AKTS + kredi snapshot + havuz ataması + (Faz 4) Açma Nedeni id snapshot
+                        var (snapshotEcts, snapshotCredit, appliedPoolId, openingReasonIdSnapshot) = await ResolveCourseSnapshotsAsync(studentId, section.CourseId);
+                        reg.EctsSnapshot = snapshotEcts;
+                        reg.CreditSnapshot = snapshotCredit;
+                        reg.AppliedElectivePoolId = appliedPoolId;
+                        reg.OpeningReasonIdSnapshot = openingReasonIdSnapshot;
+
+                        // Faz 4 — BypassMandatoryAttendance flag'i: bu ders için devam zorunluluğunu false zorla.
+                        if (openingReasonIdSnapshot.HasValue)
+                        {
+                            var bypassAttendance = await _context.CurriculumCourseOpeningReasons
+                                .AsNoTracking()
+                                .AnyAsync(r => r.Id == openingReasonIdSnapshot.Value && r.BypassMandatoryAttendance);
+                            if (bypassAttendance)
+                                reg.MandatoryAttendance = false;
+                        }
+
+                        // Koltuk rezervasyonu SeatLedger.TryReserveAsync içinde yapıldı.
+                        registrations.Add(reg);
                     }
-
-                    // Madde 6 tamamlama: AKTS + kredi snapshot + havuz ataması + (Faz 4) Açma Nedeni id snapshot
-                    var (snapshotEcts, snapshotCredit, appliedPoolId, openingReasonIdSnapshot) = await ResolveCourseSnapshotsAsync(studentId, section.CourseId);
-                    reg.EctsSnapshot = snapshotEcts;
-                    reg.CreditSnapshot = snapshotCredit;
-                    reg.AppliedElectivePoolId = appliedPoolId;
-                    reg.OpeningReasonIdSnapshot = openingReasonIdSnapshot;
-
-                    // Faz 4 — BypassMandatoryAttendance flag'i: bu ders için devam zorunluluğunu false zorla.
-                    if (openingReasonIdSnapshot.HasValue)
-                    {
-                        var bypassAttendance = await _context.CurriculumCourseOpeningReasons
-                            .AsNoTracking()
-                            .AnyAsync(r => r.Id == openingReasonIdSnapshot.Value && r.BypassMandatoryAttendance);
-                        if (bypassAttendance)
-                            reg.MandatoryAttendance = false;
-                    }
-
-                    // Koltuk rezervasyonu SeatLedger.TryReserveAsync içinde yapıldı.
-                    registrations.Add(reg);
+                    await _context.SaveChangesAsync();
+                    commitAttempted = true;
+                    if (tx != null) await tx.CommitAsync();
+                    break;
                 }
-                await _context.SaveChangesAsync();
-                if (tx != null) await tx.CommitAsync();
-            }
-            catch (DbUpdateException ex) when (IsAlreadySubmittedConflict(ex))
-            {
-                // Ön denetimden sonra aynı öğrenci-şube kaydı başka bir işlemde kesinleşti: ön denetimle aynı ret.
-                if (tx != null) await tx.RollbackAsync();
-                var currentRegistrations = await _context.CourseRegistrations.AsNoTracking()
-                    .Where(cr => cr.StudentId == studentId && missingSectionIds.Contains(cr.CourseSectionId))
-                    .ToListAsync();
-                var raceResult = AlreadySubmittedResult(currentRegistrations, missingSections);
-                if (raceResult is null) throw;
-                response.Success = false;
-                response.ValidationResult = raceResult;
-                return response;
-            }
-            catch (Exception ex) when (SeatLedger.IsConcurrencyConflict(ex))
-            {
-                // Eş zamanlı kayıt çakışması (RowVersion / Serializable) → 500 yerine kullanıcı mesajı.
-                if (tx != null) await tx.RollbackAsync();
-                response.Success = false;
-                response.ValidationResult = new ValidationResultDto
+                catch (DbUpdateException ex) when (IsAlreadySubmittedConflict(ex))
                 {
-                    IsValid = false,
-                    Errors = new List<ValidationError>
+                    // Ön denetimden sonra aynı öğrenci-şube kaydı başka bir işlemde kesinleşti: ön denetimle aynı ret.
+                    if (tx != null) await tx.RollbackAsync();
+                    var currentRegistrations = await _context.CourseRegistrations.AsNoTracking()
+                        .Where(cr => cr.StudentId == studentId && missingSectionIds.Contains(cr.CourseSectionId))
+                        .ToListAsync();
+                    var raceResult = AlreadySubmittedResult(currentRegistrations, missingSections);
+                    if (raceResult is null) throw;
+                    response.Success = false;
+                    response.ValidationResult = raceResult;
+                    return response;
+                }
+                catch (Exception ex) when (SeatLedger.IsConcurrencyConflict(ex))
+                {
+                    // Eş zamanlı kayıt çakışması (RowVersion / Serializable): taze işlemle yeniden dene; denemeler biterse
+                    // ya da geri sarma güvenli değilse 500 yerine kullanıcı mesajı. Onay (commit) düştüyse işlem zaten bitmiştir:
+                    // geri alma çağrısı hata verir; işlem yalnız bırakılır.
+                    if (tx != null)
                     {
-                        new() { Rule = "Capacity", Message = "Seçtiğiniz şubelerden birinin kontenjanı bu esnada değişti. Lütfen tekrar deneyin." }
+                        if (commitAttempted) await tx.DisposeAsync();
+                        else await tx.RollbackAsync();
                     }
-                };
-                return response;
-            }
-            catch
-            {
-                if (tx != null) await tx.RollbackAsync();
-                throw;
+                    if (canRewind && attempt < SubmitConflictMaxAttempts
+                        && await TryRewindSubmitAttemptAsync(studentId, missingSectionIds, statusesBeforeAttempts, attemptChanges))
+                        continue;
+                    response.Success = false;
+                    response.ValidationResult = new ValidationResultDto
+                    {
+                        IsValid = false,
+                        Errors = new List<ValidationError>
+                        {
+                            new() { Rule = "Capacity", Message = "Seçtiğiniz şubelerden birinin kontenjanı bu esnada değişti. Lütfen tekrar deneyin." }
+                        }
+                    };
+                    return response;
+                }
+                catch
+                {
+                    if (tx != null) await tx.RollbackAsync();
+                    throw;
+                }
             }
 
             // Reload to get navigation properties
@@ -321,6 +342,69 @@ public partial class CourseRegistrationService
         }).ToList();
 
         return response;
+    }
+
+    /// <summary>Eşzamanlılık çakışmasında gönderim kritik bölgesinin toplam deneme sayısı (teknik sınır, kurumsal kural değil).</summary>
+    private const int SubmitConflictMaxAttempts = 3;
+
+    /// <summary>
+    /// Çakışan gönderim denemesinin izleyicideki izlerini, türü ne olursa olsun geri sarar: denemede eklenen her varlık (denetim
+    /// kesicisinin eklediği denetim satırları dahil) izlenmez olur, değişen her varlık veritabanındaki hâline döner. Öğrencinin bu
+    /// şubelerdeki kayıtları denemelerden önceki hâlinden farklıysa (ör. aynı öğrencinin başka bir isteği araya girdiyse) ya da
+    /// değişen bir varlığın satırı artık yoksa false döner: yeniden deneme koltuğu ikinci kez sayabilir ya da denetimsiz sürebilirdi.
+    /// </summary>
+    private async Task<bool> TryRewindSubmitAttemptAsync(
+        int studentId,
+        List<int> sectionIds,
+        Dictionary<int, RegistrationStatus> statusesBefore,
+        SubmitAttemptChanges changes)
+    {
+        var current = await _context.CourseRegistrations.AsNoTracking()
+            .Where(cr => cr.StudentId == studentId && sectionIds.Contains(cr.CourseSectionId))
+            .Select(cr => new { cr.Id, cr.Status })
+            .ToListAsync();
+        if (current.Count != statusesBefore.Count
+            || current.Any(cr => !statusesBefore.TryGetValue(cr.Id, out var before) || before != cr.Status))
+            return false;
+
+        foreach (var entity in changes.Added.ToList())
+            _context.Entry(entity).State = EntityState.Detached;
+        foreach (var entry in changes.Modified.Where(e => !changes.Added.Contains(e)).Select(e => _context.Entry(e)).ToList())
+        {
+            if (entry.State != EntityState.Detached) await entry.ReloadAsync();
+            if (entry.State == EntityState.Detached) return false;
+        }
+        return true;
+    }
+
+    /// <summary>Bir gönderim denemesinde izleyiciye eklenen ve izleyicide değişen varlıklar; dispose edilince kayıt durur.</summary>
+    private sealed class SubmitAttemptChanges : IDisposable
+    {
+        private readonly ChangeTracker _tracker;
+        public HashSet<object> Added { get; } = new(ReferenceEqualityComparer.Instance);
+        public HashSet<object> Modified { get; } = new(ReferenceEqualityComparer.Instance);
+
+        public SubmitAttemptChanges(ChangeTracker tracker)
+        {
+            _tracker = tracker;
+            _tracker.Tracked += OnTracked;
+            _tracker.StateChanged += OnStateChanged;
+        }
+
+        private void OnTracked(object? sender, EntityTrackedEventArgs e) { if (!e.FromQuery) Record(e.Entry.Entity, e.Entry.State); }
+        private void OnStateChanged(object? sender, EntityStateChangedEventArgs e) => Record(e.Entry.Entity, e.NewState);
+
+        private void Record(object entity, EntityState state)
+        {
+            if (state == EntityState.Added) Added.Add(entity);
+            else if (state is EntityState.Modified or EntityState.Deleted) Modified.Add(entity);
+        }
+
+        public void Dispose()
+        {
+            _tracker.Tracked -= OnTracked;
+            _tracker.StateChanged -= OnStateChanged;
+        }
     }
 
     /// <summary>
