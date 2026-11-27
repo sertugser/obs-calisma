@@ -1,12 +1,14 @@
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.Logging.Abstractions;
 using SIS.Application.Common.Services;
 using SIS.Domain.Entities;
 using SIS.Domain.Enums;
 using SIS.Infrastructure.Persistence;
 using SIS.Infrastructure.Services;
 using SIS.Tests;
+using SIS.Tests.TestDoubles;
 
 namespace SIS.Tests.Application;
 
@@ -33,7 +35,7 @@ public class WebModuleControlServiceTests
 
         using var memoryCache = new MemoryCache(new MemoryCacheOptions());
         var provider = new WebModuleSettingsProvider(context, memoryCache, new FakeClock());
-        var service = new WebModuleControlService(context, provider, new FakeClock());
+        var service = new WebModuleControlService(context, provider, new FakeClock(), new SabitKurumSaatDilimi("Etc/UTC"), NullLogger<WebModuleControlService>.Instance);
 
         var result = await service.EvaluateAsync("midterm-grade-entry");
 
@@ -64,7 +66,7 @@ public class WebModuleControlServiceTests
         var clock = new FakeClock { UtcNow = new DateTime(2026, 5, 21, 5, 0, 0, DateTimeKind.Utc) };
         using var memoryCache = new MemoryCache(new MemoryCacheOptions());
         var provider = new WebModuleSettingsProvider(context, memoryCache, clock);
-        var service = new WebModuleControlService(context, provider, clock);
+        var service = new WebModuleControlService(context, provider, clock, new SabitKurumSaatDilimi("Etc/UTC"), NullLogger<WebModuleControlService>.Instance);
 
         var result = await service.EvaluateAsync("student-course-registration");
 
@@ -119,7 +121,7 @@ public class WebModuleControlServiceTests
         var clock = new FakeClock { UtcNow = new DateTime(2026, 5, 21, 5, 0, 0, DateTimeKind.Utc) };
         using var memoryCache = new MemoryCache(new MemoryCacheOptions());
         var provider = new WebModuleSettingsProvider(context, memoryCache, clock);
-        var service = new WebModuleControlService(context, provider, clock);
+        var service = new WebModuleControlService(context, provider, clock, new SabitKurumSaatDilimi("Etc/UTC"), NullLogger<WebModuleControlService>.Instance);
 
         var result = await service.EvaluateAsync("student-course-registration");
 
@@ -162,7 +164,7 @@ public class WebModuleControlServiceTests
         var clock = new FakeClock { UtcNow = new DateTime(2026, 5, 21, 10, 0, 0, DateTimeKind.Utc) };
         using var memoryCache = new MemoryCache(new MemoryCacheOptions());
         var provider = new WebModuleSettingsProvider(context, memoryCache, clock);
-        var service = new WebModuleControlService(context, provider, clock);
+        var service = new WebModuleControlService(context, provider, clock, new SabitKurumSaatDilimi("Etc/UTC"), NullLogger<WebModuleControlService>.Instance);
 
         var result = await service.EvaluateAsync("advisor-registration-approval");
 
@@ -203,7 +205,7 @@ public class WebModuleControlServiceTests
         var clock = new FakeClock { UtcNow = new DateTime(2026, 5, 21, 10, 0, 0, DateTimeKind.Utc) };
         using var memoryCache = new MemoryCache(new MemoryCacheOptions());
         var provider = new WebModuleSettingsProvider(context, memoryCache, clock);
-        var service = new WebModuleControlService(context, provider, clock);
+        var service = new WebModuleControlService(context, provider, clock, new SabitKurumSaatDilimi("Etc/UTC"), NullLogger<WebModuleControlService>.Instance);
 
         var result = await service.EvaluateAsync("advisor-add-drop-approval");
 
@@ -220,7 +222,7 @@ public class WebModuleControlServiceTests
         var clock = new FakeClock { UtcNow = new DateTime(2026, 5, 21, 5, 0, 0, DateTimeKind.Utc) };
         using var memoryCache = new MemoryCache(new MemoryCacheOptions());
         var provider = new WebModuleSettingsProvider(context, memoryCache, clock);
-        var service = new WebModuleControlService(context, provider, clock);
+        var service = new WebModuleControlService(context, provider, clock, new SabitKurumSaatDilimi("Etc/UTC"), NullLogger<WebModuleControlService>.Instance);
 
         var result = await service.EvaluateAsync("student-course-registration");
 

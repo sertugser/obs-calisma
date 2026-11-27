@@ -9,6 +9,7 @@ using SIS.Domain.Entities;
 using SIS.Domain.Enums;
 using SIS.Infrastructure.Persistence;
 using SIS.Infrastructure.Services;
+using SIS.Tests.TestDoubles;
 
 namespace SIS.Tests.Application;
 
@@ -67,7 +68,7 @@ public class AdvisorApprovalServiceTests : IDisposable
         _context = new AppDbContext(options);
         var clock = new FakeClock();
         var validationService = new RegistrationValidationService(_context, clock);
-        _service = new CourseRegistrationService(_context, validationService, clock, notifications: _notifications);
+        _service = new CourseRegistrationService(_context, validationService, clock, new SabitKurumSaatDilimi("Etc/UTC"), notifications: _notifications);
 
         SeedBaseData();
     }

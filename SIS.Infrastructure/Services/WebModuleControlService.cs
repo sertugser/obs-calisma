@@ -1,11 +1,11 @@
 using System.Globalization;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using SIS.Application.Common.Services;
 using SIS.Application.Common.Time;
 using SIS.Domain.Entities;
 using SIS.Domain.Enums;
 using SIS.Infrastructure.Persistence;
-using SIS.Infrastructure.Services.Time;
 
 namespace SIS.Infrastructure.Services;
 
@@ -20,22 +20,24 @@ public class WebModuleControlService : IWebModuleControlService
     private readonly IWebModuleSettingsProvider _settingsProvider;
     private readonly IDateTimeProvider _clock;
     private readonly IInstitutionTimeZoneProvider _institutionTimeZone;
+    private readonly ILogger<WebModuleControlService> _logger;
+
+    // Öğrenciye giden neden: kayıtlı değer ve ayar yolu yalnız yönetici özetinde ve günlükte görünür.
+    private const string WithdrawalUnavailableMessage = "Dersten çekilme şu anda kullanılamıyor. Lütfen öğrenci işlerine başvurun.";
 
     public WebModuleControlService(
         AppDbContext context,
         IWebModuleSettingsProvider settingsProvider,
         IDateTimeProvider clock,
-        IInstitutionTimeZoneProvider? institutionTimeZone = null)
+        IInstitutionTimeZoneProvider institutionTimeZone,
+        ILogger<WebModuleControlService> logger)
     {
         _context = context;
         _settingsProvider = settingsProvider;
         _clock = clock;
-        _institutionTimeZone = institutionTimeZone ?? new InstitutionTimeZoneProvider(new NullSystemConfigProvider());
+        _institutionTimeZone = institutionTimeZone;
+        _logger = logger;
     }
-
-    // Kurum saat dilimi yalnız çekilme takvimi modunda okunur; geçersiz ayar öteki modülleri durdurmaz.
-    private Func<AcademicTerm, bool> WithdrawalOpenIn(TimeZoneInfo institutionTimeZone) =>
-        t => t.IsWithdrawalOpen(_clock.UtcNow, institutionTimeZone);
 
     public WebModuleControlDefinition? GetDefinition(string code)
         => Definitions.GetValueOrDefault(code);
@@ -74,6 +76,7 @@ public class WebModuleControlService : IWebModuleControlService
                 selectedMode,
                 announcementSetting?.Value,
                 activeTerm,
+                adminSummary: true,
                 ct);
 
             summaries.Add(new WebModuleControlSummary(
@@ -110,7 +113,7 @@ public class WebModuleControlService : IWebModuleControlService
             ? await LoadTermAsync(termId.Value, ct)
             : await LoadActiveTermAsync(ct);
 
-        return await EvaluateDefinitionAsync(definition, selectedMode, announcement, term, ct);
+        return await EvaluateDefinitionAsync(definition, selectedMode, announcement, term, adminSummary: false, ct);
     }
 
     private async Task<WebModuleAccessResult> EvaluateDefinitionAsync(
@@ -118,6 +121,7 @@ public class WebModuleControlService : IWebModuleControlService
         string selectedMode,
         string? announcement,
         AcademicTerm? term,
+        bool adminSummary,
         CancellationToken ct)
     {
         var selectedOption = definition.Options.FirstOrDefault(option =>
@@ -141,6 +145,14 @@ public class WebModuleControlService : IWebModuleControlService
                 SelectedModeLabel: selectedOption.Label,
                 EffectiveStateLabel: "Kapalı",
                 Message: $"{definition.Title} modülü kapatılmıştır."),
+
+            WebModuleControlModes.TermEventBased when definition.Code == "student-withdrawal" => await EvaluateWithdrawalAsync(
+                term,
+                selectedOption,
+                announcement,
+                definition.Title,
+                adminSummary,
+                ct),
 
             WebModuleControlModes.TermEventBased => await EvaluateTermEventBasedAccessAsync(
                 definition,
@@ -168,16 +180,6 @@ public class WebModuleControlService : IWebModuleControlService
                 "Aktif akademik dönem bulunamadı.",
                 "Aktif dönemin akademik takvimi tanımlı olmadığı için ders ekle/bırak modülü açılamıyor.",
                 "Ders ekle/bırak süreci şu anda akademik takvimde açık değil."),
-
-            WebModuleControlModes.AcademicCalendarWithdrawal => EvaluateCalendarBoundAccess(
-                term,
-                selectedOption,
-                announcement,
-                definition.Title,
-                WithdrawalOpenIn(await _institutionTimeZone.GetAsync(ct)),
-                "Aktif akademik dönem bulunamadı.",
-                "Aktif dönemin akademik takvimi tanımlı olmadığı için dersten çekilme modülü açılamıyor.",
-                "Dersten çekilme süreci şu anda akademik takvimde açık değil."),
 
             WebModuleControlModes.GradeEntryPeriod => EvaluateCalendarBoundAccess(
                 term,
@@ -246,7 +248,6 @@ public class WebModuleControlService : IWebModuleControlService
             "student-add-drop" => EvaluateActiveTermEvent(term, CalendarEventType.AddDrop, selectedOption, announcement, "Ders ekle/bırak penceresi şu anda açık değil.", now),
             "student-new-add-drop" => EvaluateActiveTermEvent(term, CalendarEventType.AddDrop, selectedOption, announcement, "Yeni öğrenci ders ekle/bırak penceresi şu anda açık değil.", now),
             "advisor-add-drop-approval" => EvaluateActiveTermEvents(term, new[] { CalendarEventType.AddDropApproval, CalendarEventType.AddDrop }, selectedOption, announcement, "Ders ekle/bırak onay penceresi şu anda açık değil.", now),
-            "student-withdrawal" => EvaluateActiveTermEvent(term, CalendarEventType.CourseWithdrawal, selectedOption, announcement, "Dersten çekilme penceresi şu anda açık değil.", now),
             "midterm-grade-entry" => EvaluateActiveTermEvent(term, CalendarEventType.MidtermGradeEntry, selectedOption, announcement, "Ara sınav not girişi penceresi şu anda açık değil.", now),
             "midterm-excuse-grade-entry" => EvaluateActiveTermEvent(term, CalendarEventType.ExcuseExam, selectedOption, announcement, "Ara sınav mazeret not girişi penceresi şu anda açık değil.", now, "midterm_excuse_exam"),
             "final-grade-entry" => EvaluateActiveTermEvent(term, CalendarEventType.FinalGradeEntry, selectedOption, announcement, "Yarıyıl sınav not girişi penceresi şu anda açık değil.", now),
@@ -271,6 +272,48 @@ public class WebModuleControlService : IWebModuleControlService
         };
 
         return Task.FromResult(access);
+    }
+
+    // Çekilme kapısı dönemin çekilme kuralıdır: dönem başından son günün kurum saatiyle bitişine kadar açık.
+    // Dönemde çekilme olayı yoksa (üretici son günü başka tarihlerden türetir) kapı eskisi gibi kapalıdır; yönetici zorlaması
+    // (WithdrawalOverride) açıkça verilmişse olay olmasa da o geçerlidir (kural ve rozetle aynı).
+    // Kurum saat dilimi yalnız burada, değerlendirme başına bir kez okunur. Geçersiz ayar çekilmeyi kapatır
+    // (duyuru metni nedeni gizlemez; ayrıntı yalnız yönetici özetinde ve günlükte); öteki modülleri durdurmaz.
+    private async Task<WebModuleAccessResult> EvaluateWithdrawalAsync(
+        AcademicTerm? term,
+        WebModuleControlOption selectedOption,
+        string? announcement,
+        string title,
+        bool adminSummary,
+        CancellationToken ct)
+    {
+        if (term is not null && term.AcademicCalendar?.WithdrawalOverride is null
+            && !term.CalendarEvents.Any(evt => evt.EventType == CalendarEventType.CourseWithdrawal))
+            return new WebModuleAccessResult(true, false, selectedOption.Code, selectedOption.Label, "Takvim Eksik",
+                ResolveMessage(announcement, $"{CalendarEventType.CourseWithdrawal} etkinliği takvimde tanımlı değil."));
+
+        TimeZoneInfo institutionTimeZone;
+        try
+        {
+            institutionTimeZone = await _institutionTimeZone.GetAsync(ct);
+        }
+        catch (InstitutionTimeZoneConfigurationException ex)
+        {
+            _logger.LogWarning("Dersten çekilme kapısı kapalı: {Neden}", ex.Detail);
+            return new WebModuleAccessResult(true, false, selectedOption.Code, selectedOption.Label, "Ayar Hatası",
+                adminSummary ? ex.Detail : WithdrawalUnavailableMessage);
+        }
+
+        var now = _clock.UtcNow;
+        return EvaluateCalendarBoundAccess(
+            term,
+            selectedOption,
+            announcement,
+            title,
+            t => t.IsWithdrawalOpen(now, institutionTimeZone),
+            "Aktif akademik dönem bulunamadı.",
+            "Aktif dönemin akademik takvimi tanımlı olmadığı için dersten çekilme modülü açılamıyor.",
+            "Dersten çekilme penceresi şu anda açık değil.");
     }
 
     private WebModuleAccessResult EvaluateActiveTermEvent(
@@ -541,7 +584,6 @@ public class WebModuleControlService : IWebModuleControlService
         var calendarBound = definition.Options.FirstOrDefault(option =>
             option.Code is WebModuleControlModes.AcademicCalendarRegistration
                 or WebModuleControlModes.AcademicCalendarAddDrop
-                or WebModuleControlModes.AcademicCalendarWithdrawal
                 or WebModuleControlModes.GradeEntryPeriod
                 or WebModuleControlModes.TermEventBased);
         if (calendarBound is not null)
@@ -571,13 +613,6 @@ public class WebModuleControlService : IWebModuleControlService
             new WebModuleControlOption(WebModuleControlModes.Open, "Açık", "Takvim penceresinden bağımsız olarak modülü manuel açar."),
             new WebModuleControlOption(WebModuleControlModes.Closed, "Kapalı", "Modülü tamamen kapatır."),
             new WebModuleControlOption(WebModuleControlModes.AcademicCalendarAddDrop, "Ak.Takvime Bağlı", "Dönemin ekle/bırak penceresi açıksa modülü açar."),
-        };
-
-        var withdrawalOptions = new[]
-        {
-            new WebModuleControlOption(WebModuleControlModes.Open, "Açık", "Takvim penceresinden bağımsız olarak modülü manuel açar."),
-            new WebModuleControlOption(WebModuleControlModes.Closed, "Kapalı", "Modülü tamamen kapatır."),
-            new WebModuleControlOption(WebModuleControlModes.AcademicCalendarWithdrawal, "Ak.Takvime Bağlı", "Dönemin çekilme penceresi açıksa modülü açar."),
         };
 
         var gradeEntryOptions = new[]

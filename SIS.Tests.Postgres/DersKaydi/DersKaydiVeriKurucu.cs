@@ -2,6 +2,7 @@ using System.Data.Common;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Logging.Abstractions;
+using SIS.Application.Common.Services;
 using SIS.Application.Common.Time;
 using SIS.Application.CourseRegistration.DTOs;
 using SIS.Application.Notifications.DTOs;
@@ -10,6 +11,7 @@ using SIS.Domain.Entities;
 using SIS.Domain.Enums;
 using SIS.Infrastructure.Persistence;
 using SIS.Infrastructure.Services;
+using SIS.Infrastructure.Services.Time;
 
 namespace SIS.Tests.Postgres.DersKaydi;
 
@@ -68,12 +70,14 @@ internal sealed class DersKaydiVeriKurucu(PostgresFixture fixture)
 
     /// <summary>Verilen context'le gerçek doğrulama ve kayıt servisleri üzerinden verilen şubelere gönderim.</summary>
     public Task<RegistrationResponseDto> GonderAsync(AppDbContext db, int ogrenciId, params int[] subeIdleri) =>
-        new CourseRegistrationService(db, new RegistrationValidationService(db, new SabitSaat()), new SabitSaat())
+        new CourseRegistrationService(db, new RegistrationValidationService(db, new SabitSaat()), new SabitSaat(),
+                new InstitutionTimeZoneProvider(new NullSystemConfigProvider()))
             .SubmitRegistrationAsync(ogrenciId, new RegistrationSubmitDto { CourseSectionIds = [.. subeIdleri] });
 
     /// <summary>Gönderimi gerçek bildirim servisiyle yapar; bildirim aynı context'le yazılır.</summary>
     public Task<RegistrationResponseDto> BildirimliGonderAsync(AppDbContext db, int ogrenciId, int subeId) =>
         new CourseRegistrationService(db, new RegistrationValidationService(db, new SabitSaat()), new SabitSaat(),
+                new InstitutionTimeZoneProvider(new NullSystemConfigProvider()),
                 notifications: new NotificationService(db, new SabitSaat(), new SessizPush(), NullLogger<NotificationService>.Instance))
             .SubmitRegistrationAsync(ogrenciId, new RegistrationSubmitDto { CourseSectionIds = [subeId] });
 

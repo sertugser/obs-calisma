@@ -5,6 +5,7 @@ using SIS.Domain.Entities;
 using SIS.Domain.Enums;
 using SIS.Infrastructure.Persistence;
 using SIS.Infrastructure.Services;
+using SIS.Tests.TestDoubles;
 
 namespace SIS.Tests.API.DersKaydi;
 
@@ -205,7 +206,7 @@ internal sealed class DersKaydiOrtami : IDisposable
 
     public RegistrationValidationService Dogrulama() => new(Db, Saat);
 
-    public CourseRegistrationService Kayit() => new(Db, Dogrulama(), Saat);
+    public CourseRegistrationService Kayit() => new(Db, Dogrulama(), Saat, new SabitKurumSaatDilimi("Etc/UTC"));
 
     public StudentRegistrationCatalogService Katalog() => new(Db, new EctsLimitResolver(new NullSystemConfigProvider()),
         new RegistrationGate(Db), new ElectivePoolProgressCalculator(Db), Saat, new NullWebModuleControlService());

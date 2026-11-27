@@ -14,7 +14,7 @@ public sealed class InstitutionTimeZoneProvider(ISystemConfigProvider config) : 
         if (InstitutionTimeZoneValidator.TryResolve(id, out var timeZone, out var error))
             return timeZone;
 
-        throw new InvalidOperationException(
+        throw new InstitutionTimeZoneConfigurationException(
             $"Kurum saat dilimi ayarı geçersiz: {error} Sistem Ayarları > Genel bölümünden geçerli bir saat dilimi seçin.");
     }
 }
