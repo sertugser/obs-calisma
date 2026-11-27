@@ -4062,6 +4062,9 @@ namespace SIS.Infrastructure.Migrations
 
                     b.HasIndex("Route");
 
+                    b.HasIndex("Slug")
+                        .IsUnique();
+
                     b.HasIndex("ModuleId", "Route")
                         .IsUnique();
 

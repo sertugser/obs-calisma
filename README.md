@@ -87,7 +87,7 @@ cd SIS.API
 SIS_SETUP_ADMIN_EMAIL=yonetici@example.edu SIS_SETUP_ADMIN_PASSWORD='<güçlü parola>' dotnet run -- setup
 ```
 
-Örnek veri de istenirse sona `--seed-demo` eklenir. Varsayılan yönetici parolası yoktur; parola değişkeni boşsa ve yönetici yoksa komut durur.
+Kurumun akademik yapısı (fakülte, bölüm, program, ders, derslik ve kuruma özel açma nedenleri) `--kurum yerel` ile yazılır; çekirdek bu veriyi içermez. Örnek veri de istenirse sona `--seed-demo` eklenir (örnek veri bugün yerel kurumun yapısını kullanır ve onu da yazar). Varsayılan yönetici parolası yoktur; parola değişkeni boşsa ve yönetici yoksa komut durur.
 
 - Kurulum, sunucuyla aynı yapılandırmayı ister (bağlantı cümlesi, JWT ayarları, CORS, AllowedHosts); bunlar ortam değişkeniyle ya da `appsettings` ile verilir, komut satırı ayarları okunmaz.
 - `--seed-demo` bugün sabit parolalı örnek hesaplar (aşağıdaki tablo) da oluşturur; yalnız geliştirme veritabanında kullanılmalıdır.
@@ -123,11 +123,15 @@ Bu script `dotnet restore`, `dotnet build`, EF Core migration, `npm install` ve 
 
 ## Varsayılan Kullanıcılar (Development)
 
-| Rol | E-posta | Şifre |
-|-----|---------|-------|
-| Admin | admin@ankarabilim.edu.tr | Admin123! |
-| Öğretim Üyesi | ogretmen@ankarabilim.edu.tr | Ogretmen123! |
-| Öğrenci | Seed data ile oluşturulur | Ogrenci123! |
+Örnek verideki bütün hesapların parolası, hesaplar ilk oluşturulurken `SIS_DEMO_PASSWORD` ortam değişkeninden alınır. Kodda sabit parola yoktur. Değişken verilmezse parola rastgele üretilir ve hiçbir yere yazılmaz; o veritabanında örnek hesaplarla giriş yapılamaz (değişkeni sonradan vermek var olan hesapları değiştirmez, veritabanı yeniden kurulmalıdır).
+
+| Rol | E-posta |
+|-----|---------|
+| Yönetici | yonetici@example.edu |
+| İdari personel | idari@example.edu |
+| Danışman | danisman@example.edu |
+| Öğretim elemanı | ogretim01@example.edu … ogretim36@example.edu |
+| Öğrenci | ornek01@example.edu … ornek18@example.edu ve üretilen öğrenciler (`ogrenciNNNN@example.edu`, dört haneli sıra numarasıyla) |
 
 ## Proje Yapısı
 
@@ -138,7 +142,7 @@ SIS.Infrastructure/   → EF Core, DbContext, Repositories
 SIS.API/              → Controllers, Middleware, DI
 SIS.Web/              → React frontend (Vite + TypeScript + Tailwind)
 SIS.Tests/            → Unit testler
-scripts/              → Manuel SQL migration ve yetki yamaları
+scripts/              → Yardımcı betikler (yasaklı kelime, npm denetimi); veri betiği yok, sistem verisi katalogdan gelir
 ```
 
 ## Komutlar
@@ -150,7 +154,7 @@ dotnet run --project SIS.API          # Backend'i başlat
 cd SIS.Web && npm run dev             # Frontend'i başlat
 ```
 
-CI'daki `Backend Coverage` işi her pull request'te koşar ve kapsam özetini iş özetine yazar; zorunlu kontrol değildir, eşik yoktur.
+CI'daki `Backend Coverage` işi yalnız main'e push'ta ve elle (workflow_dispatch) koşar, pull request'te koşmaz; kapsam özetini iş özetine yazar; zorunlu kontrol değildir, eşik yoktur.
 EF migration dosyaları kapsam hesabına girmez.
 
 ## Hata giderme

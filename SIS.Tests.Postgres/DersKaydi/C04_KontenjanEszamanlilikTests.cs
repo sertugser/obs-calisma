@@ -5,7 +5,7 @@ using SIS.Domain.Enums;
 namespace SIS.Tests.Postgres.DersKaydi;
 
 // C-04: son koltuğa iki öğrencinin gönderimi; eşzamanlılık ayrı context'lerle, sıralı ve belirlenimli kurulur.
-// Ret mesajları yolu ayırır: doğrulama "kontenjani dolu", rezervasyon "bu esnada doldu", çakışma "bu esnada değişti".
+// Ret mesajları yolu ayırır: doğrulama "kontenjani dolu", rezervasyon "bu esnada doldu" (çakışmadan sonraki yeniden deneme dahil).
 [Collection(PostgresKoleksiyonu.Ad)]
 public sealed class C04_KontenjanEszamanlilikTests(PostgresFixture fixture) : IAsyncLifetime
 {
@@ -61,8 +61,9 @@ public sealed class C04_KontenjanEszamanlilikTests(PostgresFixture fixture) : IA
     }
 
     // Öğrenci 2'nin gönderimi, öğrenci 1'in işlemi koltuğu okuduktan sonra ve yazmadan önce tamamlanır.
+    // Çakışan işlem yeniden denenir (D23); taze okuma koltuğun dolduğunu görür.
     [Fact]
-    public async Task C04_SonKoltuk_ArayaGirenGonderim_AyniSube_CakismaIleReddedilir()
+    public async Task C04_SonKoltuk_ArayaGirenGonderim_AyniSube_YenidenDenemedeBuEsnadaDolduIleReddedilir()
     {
         var veri = await DersKaydiVeriKurucu.KurAsync(fixture);
         var sube = await veri.SubeEkleAsync(await veri.DersEkleAsync("DKY101"), kapasite: 1);
@@ -72,14 +73,15 @@ public sealed class C04_KontenjanEszamanlilikTests(PostgresFixture fixture) : IA
         var (sonuc, araSonuc) = await ArayaGirerekGonderAsync(veri, bir, sube, iki, sube);
 
         Assert.True(araSonuc.Success);
-        TekKontenjanHatasi(sonuc, "kontenjanı bu esnada değişti. Lütfen tekrar deneyin.");
+        TekKontenjanHatasi(sonuc, "dersinin kontenjanı bu esnada doldu (1/1).");
         Assert.Equal(1, await veri.MevcutAsync(sube));
         Assert.Equal(new[] { (iki, Bekliyor) }, await veri.KayitlarAsync(sube));
     }
 
     // Çapraz listedeki iki şube tek koltuğu paylaşır; araya giren gönderim diğer şubeye yazar (farklı satır).
+    // Çakışan işlem yeniden denenir (D23); taze okuma grup toplamının dolduğunu görür.
     [Fact]
-    public async Task C04_CaprazListe_SonKoltuk_ArayaGirenGonderim_DigerSube_CakismaIleReddedilir()
+    public async Task C04_CaprazListe_SonKoltuk_ArayaGirenGonderim_DigerSube_YenidenDenemedeBuEsnadaDolduIleReddedilir()
     {
         var veri = await DersKaydiVeriKurucu.KurAsync(fixture);
         var subeA = await veri.SubeEkleAsync(await veri.DersEkleAsync("DKY101"), kapasite: 1, grup: 1);
@@ -90,7 +92,7 @@ public sealed class C04_KontenjanEszamanlilikTests(PostgresFixture fixture) : IA
         var (sonuc, araSonuc) = await ArayaGirerekGonderAsync(veri, bir, subeA, iki, subeB);
 
         Assert.True(araSonuc.Success);
-        TekKontenjanHatasi(sonuc, "kontenjanı bu esnada değişti. Lütfen tekrar deneyin.");
+        TekKontenjanHatasi(sonuc, "dersinin kontenjanı bu esnada doldu (1/1).");
         Assert.Equal((0, 1), (await veri.MevcutAsync(subeA), await veri.MevcutAsync(subeB)));
         Assert.Empty(await veri.KayitlarAsync(subeA));
         Assert.Equal(new[] { (iki, Bekliyor) }, await veri.KayitlarAsync(subeB));

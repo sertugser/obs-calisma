@@ -1,6 +1,6 @@
 # dosya<TAB>desen-adı<TAB>sayı (yol eşleşmesinde sayı yerine "ad"). scripts/yasakli-kelime.sh --baseline üretir; liste yalnız küçülür.
 .gitignore	yapay-zeka	3
-README.md	kurum-ankara-bilim	3
+README.md	kurum-ankara-bilim	1
 README.md	kurum-bilim-universite	1
 SIS.API/Controllers/AdvisorController.cs	rakip-proliz	6
 SIS.API/Controllers/AdvisorController.cs	yapay-zeka	1
@@ -28,9 +28,7 @@ SIS.Domain/Enums/IneligibilityReason.cs	rakip-proliz	1
 SIS.Domain/Enums/TermType.cs	kurum-ankara-bilim	1
 SIS.Infrastructure/Persistence/AppDbContext.cs	rakip-proliz	1
 SIS.Infrastructure/Persistence/SeedData.SystemConfig.cs	kurum-ankara-bilim	1
-SIS.Infrastructure/Persistence/SeedData.Users.cs	kurum-ankara-bilim	63
 SIS.Infrastructure/Persistence/Seeds/CurriculumCourseOpeningReasonSeed.cs	rakip-proliz	2
-SIS.Infrastructure/Persistence/Seeds/MenuStructureSeed.cs	rakip-proliz	1
 SIS.Infrastructure/Persistence/Seeds/RolePermissionSeed.cs	rakip-proliz	1
 SIS.Infrastructure/Services/AcademicOperationsService.BulkOperations.cs	rakip-proliz	1
 SIS.Infrastructure/Services/AdminCourseCatalogService.cs	rakip-proliz	4
@@ -127,6 +125,3 @@ SIS.Web/src/pages/curriculum-management/CurriculumCoursesView.tsx	rakip-proliz	2
 SIS.Web/src/pages/term-program-transfer/components/TargetTermPanel.tsx	rakip-proliz	1
 SIS.Web/src/types/registration.ts	rakip-proliz	2
 docs/CODEMAPS/elective-pool-system.md	rakip-proliz	1
-scripts/2026-05-16-duplicate-courses-cleanup.sql	kurum-ankara-bilim	1
-scripts/2026-05-27-backfill-national-credit.sql	kurum-ankara-bilim	1
-scripts/2026-05-30-grade-component-publish-permission.sql	yapay-zeka	1

@@ -7,19 +7,42 @@ using SIS.Application.Common.Time;
 namespace SIS.Infrastructure.Persistence.Kurulum;
 
 // `SIS.API setup [--seed-demo]` komutunun seçenekleri.
-public sealed record KurulumSecenekleri(bool DemoVerisi, string? YoneticiEposta, string? YoneticiParola)
+public sealed record KurulumSecenekleri(bool DemoVerisi, string? YoneticiEposta, string? YoneticiParola, string? Kurum = null, DateTime? DemoTarihi = null)
 {
     public const string Komut = "setup";
     public const string DemoBayragi = "--seed-demo";
+    public const string KurumBayragi = "--kurum";
+    public const string DemoTarihiBayragi = "--demo-tarih";
     public const string EpostaDegiskeni = "SIS_SETUP_ADMIN_EMAIL";
     public const string ParolaDegiskeni = "SIS_SETUP_ADMIN_PASSWORD";
 
     public static bool KurulumKomutuMu(string[] args) => args.Length > 0 && args[0] == Komut;
 
-    public static KurulumSecenekleri Oku(string[] args, Func<string, string?> ortamDegiskeni) =>
-        new(args.Skip(1).Contains(DemoBayragi),
+    public static KurulumSecenekleri Oku(string[] args, Func<string, string?> ortamDegiskeni)
+    {
+        var kurumYeri = Array.IndexOf(args, KurumBayragi);
+        string? kurum = null;
+        if (kurumYeri > 0)
+        {
+            if (kurumYeri + 1 >= args.Length || args[kurumYeri + 1].StartsWith("--", StringComparison.Ordinal))
+                throw new ArgumentException($"{KurumBayragi} bir kurum adı ister, ör. '{KurumBayragi} yerel'.");
+            kurum = args[kurumYeri + 1];
+        }
+        DateTime? demoTarihi = null;
+        var tarihYeri = Array.IndexOf(args, DemoTarihiBayragi);
+        if (tarihYeri > 0)
+        {
+            if (tarihYeri + 1 >= args.Length || !DateTime.TryParseExact(args[tarihYeri + 1], "yyyy-MM-dd",
+                    System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out var gun))
+                throw new ArgumentException($"{DemoTarihiBayragi} YYYY-AA-GG biçiminde bir tarih ister.");
+            demoTarihi = DateTime.SpecifyKind(gun, DateTimeKind.Utc);
+        }
+        return new(args.Skip(1).Contains(DemoBayragi),
             ortamDegiskeni(EpostaDegiskeni),
-            ortamDegiskeni(ParolaDegiskeni));
+            ortamDegiskeni(ParolaDegiskeni),
+            kurum,
+            demoTarihi);
+    }
 }
 
 // Boş ya da var olan bir veritabanını kullanıma hazırlar: migration, sistem verisi, ilk yönetici,
@@ -31,9 +54,13 @@ public static class KurulumCalistirici
     public static async Task<int> CalistirAsync(
         IServiceProvider servisler, KurulumSecenekleri secenekler, ILogger gunluk, CancellationToken ct = default)
     {
-        var adim = "migration";
+        var adim = "seçenekler";
         try
         {
+            // Kurum adı veritabanına dokunmadan önce doğrulanır.
+            var kurumKaynagi = secenekler.Kurum is null ? null : Kurum.KurumVeriKaynaklari.Bul(secenekler.Kurum);
+
+            adim = "migration";
             await using (var kapsam = servisler.CreateAsyncScope())
             {
                 var db = kapsam.ServiceProvider.GetRequiredService<AppDbContext>();
@@ -57,13 +84,22 @@ public static class KurulumCalistirici
                 ? "Kurulum: ilk yönetici oluşturuldu."
                 : "Kurulum: yönetici zaten var, dokunulmadı.");
 
+            if (kurumKaynagi is not null)
+            {
+                adim = "kurum verisi";
+                await AdimdaCalistirAsync(servisler, async sp =>
+                    await kurumKaynagi.YazAsync(sp.GetRequiredService<AppDbContext>(), ct), ct);
+                gunluk.LogInformation("Kurulum: '{Kurum}' kurum verisi yazıldı.", kurumKaynagi.Ad);
+            }
+
             if (secenekler.DemoVerisi)
             {
                 adim = "örnek veri";
                 await AdimdaCalistirAsync(servisler, async sp =>
                     await SeedData.SeedDemoAsync(
                         sp.GetRequiredService<AppDbContext>(),
-                        sp.GetRequiredService<UserManager<ApplicationUser>>(), saatDilimiYeni), ct);
+                        sp.GetRequiredService<UserManager<ApplicationUser>>(), saatDilimiYeni,
+                        secenekler.DemoTarihi ?? sp.GetRequiredService<IDateTimeProvider>().UtcNow), ct);
                 gunluk.LogInformation("Kurulum: örnek veri yazıldı.");
             }
 

@@ -5,7 +5,8 @@ namespace SIS.Infrastructure.Persistence.Seeds;
 
 /// <summary>
 /// Faz 3a — öğrenci belge tipleri referans kataloğu seed'i.
-/// Idempotent merge: <see cref="Defaults"/> içindeki Code'su tabloda olmayanları ekler,
+/// Katalog kuralı: Code'su tabloda da katalog kaydında da olmayanı ekler; mevcut kayıtlara dokunmaz, yöneticinin sildiği geri gelmez.
+/// Eski not:
 /// mevcut kayıtlara dokunmaz. Bu katalog için admin CRUD yoktur (sadece seed).
 /// </summary>
 public static class DocumentTypeSeed
@@ -23,29 +24,17 @@ public static class DocumentTypeSeed
     };
 
     /// <summary>
-    /// Idempotent merge — sadece Code'su tabloda olmayanları ekler.
+    /// Katalog kuralı: Code'su tabloda da katalog kaydında da olmayanı ekler; mevcut kayıtlara dokunmaz, yöneticinin sildiği geri gelmez.
     /// </summary>
     public static async Task SeedAsync(AppDbContext context, CancellationToken ct = default)
     {
-        var existingCodes = await context.DocumentTypes
-            .Select(d => d.Code)
-            .ToListAsync(ct);
-        var existingSet = new HashSet<string>(existingCodes, StringComparer.Ordinal);
-
-        var toAdd = Defaults
-            .Where(d => !existingSet.Contains(d.Code))
-            .Select(d => new DocumentType
-            {
-                Code = d.Code,
-                Name = d.Name,
-                IsRequired = d.IsRequired,
-                SortOrder = d.SortOrder,
-            })
-            .ToList();
-
-        if (toAdd.Count == 0) return;
-
-        context.DocumentTypes.AddRange(toAdd);
-        await context.SaveChangesAsync(ct);
+        await Katalog.KatalogEsitleyici.EsitleAsync(context, new Katalog.KatalogTuru<DocumentType, DocumentType>
+        {
+            Ad = "belge-tipi",
+            Kayitlar = Defaults,
+            KayitAnahtari = d => d.Code,
+            VarlikAnahtari = d => d.Code,
+            Olustur = (d, _) => new DocumentType { Code = d.Code, Name = d.Name, IsRequired = d.IsRequired, SortOrder = d.SortOrder },
+        }, DateTime.UtcNow, ct);
     }
 }
