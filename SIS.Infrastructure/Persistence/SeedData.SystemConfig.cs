@@ -199,7 +199,6 @@ public static partial class SeedData
             // path zaten section-aware NoOverlap). DB temizliği migration ile yapıldı.
 
             // ── Akıllı Derslik Atama Önerisi (ClassroomSuggestionService) ─────
-            new() { Key = "Classroom.AmphiThreshold", Value = "100", Category = "Suggestion", DataType = "int", Description = "Bir dersi amfi gerektiren öğrenci eşiği. Tahmini talep bu değerin üzerindeyse ders amfide verilmeli sayılır." },
             new() { Key = "Suggestion.ElectiveDemandRatio", Value = "0.35", Category = "Suggestion", DataType = "decimal", Description = "Seçmeli dersleri öğrencilerin kaç katı talep eder (0-1 arası). 0.35 = %35'i alır varsayımı." },
             new() { Key = "Suggestion.HistoricalWeight", Value = "0.6", Category = "Suggestion", DataType = "decimal", Description = "Tarihsel veri ile tahmin harmanlamasında tarihsel veriye verilen ağırlık (0-1). 0.6 = tarihsel %60, tahmin %40." },
             new() { Key = "Suggestion.HistoricalAnomalyCap", Value = "2.0", Category = "Suggestion", DataType = "decimal", Description = "Anomali koruması: tarihsel kullanım, tahminin bu katından fazlasını geçemez. 2.0 = max tahminin 2 katı." },
@@ -222,26 +221,16 @@ public static partial class SeedData
             .Where(config => !RemovedSystemConfigKeys.Contains(config.Key, StringComparer.OrdinalIgnoreCase))
             .ToList();
 
-        // Bazı eski merge/refactor izlerinde aynı key listede iki kez tanımlanmış olabilir.
-        // Startup seed'inin patlamaması için key bazında tekilleştiriyoruz.
-        configs = configs
-            .GroupBy(config => config.Key, StringComparer.OrdinalIgnoreCase)
-            .Select(group => group.First())
-            .ToList();
-
-        var existingKeys = await context.SystemConfigs
-            .AsNoTracking()
-            .Select(config => config.Key)
-            .ToListAsync();
-        var existingKeySet = existingKeys.ToHashSet(StringComparer.OrdinalIgnoreCase);
-        var missingConfigs = configs
-            .Where(config => !existingKeySet.Contains(config.Key))
-            .ToList();
-
-        if (missingConfigs.Count == 0)
-            return;
-
-        context.SystemConfigs.AddRange(missingConfigs);
-        await context.SaveChangesAsync();
+        // Katalog kuralı: eksik anahtar eklenir, yöneticinin sildiği geri gelmez. Var olan satıra hiç
+        // dokunulmaz: değer ve veri tipi yöneticinin; kategori zamanlama yükleyicisinde süzgeç olarak
+        // kullanılıyor; açıklamaları migration'lar sonradan değiştirmiş. Kataloğun alanları Adım 3.4b'de.
+        await Katalog.KatalogEsitleyici.EsitleAsync(context, new Katalog.KatalogTuru<SystemConfig, SystemConfig>
+        {
+            Ad = "sistem-ayari",
+            Kayitlar = configs,
+            KayitAnahtari = c => c.Key,
+            VarlikAnahtari = c => c.Key,
+            Olustur = (c, _) => c,
+        }, DateTime.UtcNow);
     }
 }

@@ -569,23 +569,15 @@ public static partial class SeedData
             },
         };
 
-        var existingPairs = await context.WebModuleSettings
-            .AsNoTracking()
-            .Select(setting => new { setting.ModuleKey, setting.Key })
-            .ToListAsync();
-
-        var existingSet = existingPairs
-            .Select(pair => $"{pair.ModuleKey}:{pair.Key}")
-            .ToHashSet(StringComparer.OrdinalIgnoreCase);
-
-        var missingSettings = settings
-            .Where(setting => !existingSet.Contains($"{setting.ModuleKey}:{setting.Key}"))
-            .ToList();
-
-        if (missingSettings.Count == 0)
-            return;
-
-        context.WebModuleSettings.AddRange(missingSettings);
-        await context.SaveChangesAsync();
+        // Katalog kuralı: eksik anahtar eklenir, yöneticinin sildiği geri gelmez. Var olan satıra
+        // dokunulmaz (değer ve geçerlilik tarihleri yöneticinin); kataloğun alanları Adım 3.4b'de.
+        await Katalog.KatalogEsitleyici.EsitleAsync(context, new Katalog.KatalogTuru<WebModuleSetting, WebModuleSetting>
+        {
+            Ad = "web-modul-ayari",
+            Kayitlar = settings,
+            KayitAnahtari = s => $"{s.ModuleKey}:{s.Key}",
+            VarlikAnahtari = s => $"{s.ModuleKey}:{s.Key}",
+            Olustur = (s, _) => s,
+        }, DateTime.UtcNow);
     }
 }

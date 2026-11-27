@@ -302,17 +302,16 @@ public static partial class SeedData
             },
         };
 
-        var existingCodes = await context.ConstraintDefinitions
-            .AsNoTracking()
-            .Select(d => d.Code)
-            .ToListAsync();
-        var existingCodeSet = existingCodes.ToHashSet(StringComparer.OrdinalIgnoreCase);
-        var missing = definitions.Where(d => !existingCodeSet.Contains(d.Code)).ToList();
-
-        if (missing.Count == 0)
-            return;
-
-        context.ConstraintDefinitions.AddRange(missing);
-        await context.SaveChangesAsync();
+        // Katalog kuralı: eksik kısıt eklenir, yöneticinin sildiği geri gelmez. Var olan satıra dokunulmaz
+        // (açma-kapama, ağırlık, parametreler, kategori yöneticinin; ad ve açıklamayı migration'lar
+        // değiştirmiş); kataloğun alanları Adım 3.4b'de.
+        await Katalog.KatalogEsitleyici.EsitleAsync(context, new Katalog.KatalogTuru<ConstraintDefinition, ConstraintDefinition>
+        {
+            Ad = "kisit",
+            Kayitlar = definitions,
+            KayitAnahtari = d => d.Code,
+            VarlikAnahtari = d => d.Code,
+            Olustur = (d, _) => d,
+        }, DateTime.UtcNow);
     }
 }
