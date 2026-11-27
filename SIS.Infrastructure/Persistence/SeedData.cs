@@ -55,21 +55,25 @@ public static partial class SeedData
     }
 
     // Örnek (demo) veri: kullanıcılar, dönemler, kayıtlar. Sistem verisinden sonra çalışır.
+    // bugun: dönemlerin ve not geçmişinin göre kurulduğu gün (verilmezse şimdiki UTC zamanı).
     // Saat dilimi ilk adımdır: sonraki bir adım yarıda kesilse de atama yapılmış olur.
     public static async Task SeedDemoAsync(
         AppDbContext context,
         UserManager<ApplicationUser> userManager,
-        bool kurumSaatDilimiYeni)
+        bool kurumSaatDilimiYeni,
+        DateTime? bugun = null)
     {
         await SeedDemoTimeZoneAsync(context, kurumSaatDilimiYeni);
+        var gun = DateTime.SpecifyKind((bugun ?? DateTime.UtcNow).Date, DateTimeKind.Utc);
         // Örnek veri bugün yerel kurumun akademik yapısına dayanıyor; yapı yoksa önce o yazılır
         // (Adım 3.7'de demo üretici kendi sentetik kurumunu kuracak).
         await new Kurum.YerelKurumVeriKaynagi().YazAsync(context);
-        await SeedTermsAsync(context);
+        await SeedTermsAsync(context, gun);
         await SeedUsersAsync(context, userManager);
-        await SeedRegistrationsAsync(context);    // Geçmiş dönem transkript verileri (aktif döneme dokunmaz)
+        await SeedRegistrationsAsync(context, gun);    // Geçmiş dönem transkript verileri (aktif döneme dokunmaz)
         // SeedSectionSchedulesAsync devre dışı — schedule'lar scheduling sistemi tarafından oluşturulmalı
         await SeedTimeSlotsAsync(context);
+        await SeedActiveTermSectionsAsync(context, gun); // etkin dönem şubeleri, hocalar ve program
     }
 
     // SystemConfig'te "sonradan güncellendi" izi yok; atama yalnız anahtar bu kurulum koşusunda ilk kez
