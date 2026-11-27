@@ -121,6 +121,24 @@ public class AuthServiceTests
         VerifyWarnings(logger, Times.Once());
     }
 
+    // Doğru parolada sıfırlama çakışır ve yeniden yüklenen hesap kilitliyse: sıfırlama yeniden denenmez, yanıt kilitli hesabın
+    // bugünkü yanıtı, jeton yok, uyarı günlüğü yok.
+    [Fact]
+    public async Task LoginAsync_ResetConcurrencyFailure_ReloadedUserLockedOut_ReturnsLockedResponse_NoRetry()
+    {
+        var (service, userManager, logger, user) = CreateLoginService(passwordValid: true);
+        userManager.SetupSequence(x => x.IsLockedOutAsync(user)).ReturnsAsync(false).ReturnsAsync(true);
+        UserUpdate(userManager, user, passwordValid: true).ReturnsAsync(ConcurrencyFailure()).ReturnsAsync(IdentityResult.Success);
+
+        var response = await service.LoginAsync(new LoginDto { Email = user.Email! });
+
+        response.Success.Should().BeFalse();
+        response.Error.Should().Be("Account is locked. Please try again later.");
+        response.Token.Should().BeEmpty();
+        VerifyUserUpdate(userManager, user, passwordValid: true, Times.Once());
+        VerifyWarnings(logger, Times.Never());
+    }
+
     private static (AuthService, Mock<UserManager<ApplicationUser>>, Mock<ILogger<AuthService>>, ApplicationUser) CreateLoginService(bool passwordValid)
     {
         var context = CreateContext();

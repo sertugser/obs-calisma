@@ -64,6 +64,26 @@ public sealed class D46_EszamanliGirisTests(PostgresFixture fixture, DersProgram
         Assert.Equal(1, await db.AuditLogs.CountAsync(a => a.Action == "LoginSuccess" && a.EntityId == Email));
     }
 
+    // Doğru parola, sayaç 2; sıfırlamadan hemen önce araya giren güncelleme hesabı kilitler: yanıt kilitli hesabın bugünkü yanıtıyla
+    // birebir aynı; sayaç sıfırlanmaz, kilit kalır, başarı kaydı yok, kilit gerekçeli tek başarısız kayıt.
+    [Fact]
+    public async Task D46_DogruParola_SifirlamadaArayaGirenKilit_KilitliHesapYaniti_SayacSifirlanmaz()
+    {
+        var (yanit, kesici) = await ArayaGirerekGirisAsync(dogruParola: true, enCok: 1, sayac: 2, kilitle: true);
+
+        Assert.Equal(HttpStatusCode.Unauthorized, yanit.StatusCode);
+        Assert.Equal(1, kesici.Calisma);
+        Assert.Equal((3, true), await SayacVeKilitAsync());
+        Assert.Equal([KilitGerekce], await BasarisizKayitlarAsync());
+        await using (var db = fixture.YeniContext())
+            Assert.Equal(0, await db.AuditLogs.CountAsync(a => a.Action == "LoginSuccess" && a.EntityId == Email));
+        using var istemci = uygulama.Al(fixture.BaglantiCumlesi).CreateClient();
+        // Kilitli hesapta yanıt paroladan bağımsız (parola denetlenmez); karşılaştırma için yeni kurucunun parolası gerekmez.
+        var kilitliYanit = await new YetkiKurucu(fixture, uygulama.Al(fixture.BaglantiCumlesi)).GirisAsync(istemci, Email, dogruParola: false);
+        Assert.Equal(kilitliYanit.StatusCode, yanit.StatusCode);
+        Assert.Equal(await kilitliYanit.Content.ReadAsStringAsync(), await yanit.Content.ReadAsStringAsync());
+    }
+
     // Üç eşzamanlı yanlış parola: bir istek en çok iki kez kaybeder, üç deneme yeter. Hepsi 401, sayaç 3, üç kayıt.
     [Fact]
     public async Task D46_UcEszamanliYanlisParola_Hepsi401_SayacUc()
@@ -127,9 +147,9 @@ public sealed class D46_EszamanliGirisTests(PostgresFixture fixture, DersProgram
     }
 
     // Kesici ayrı bir uygulama örneğinin context'ine eklenir (ayrı hız sınırı sayacı).
-    private async Task<(HttpResponseMessage, KullaniciGuncellemeKesicisi)> ArayaGirerekGirisAsync(bool dogruParola, int enCok, int sayac = 0)
+    private async Task<(HttpResponseMessage, KullaniciGuncellemeKesicisi)> ArayaGirerekGirisAsync(bool dogruParola, int enCok, int sayac = 0, bool kilitle = false)
     {
-        var kesici = new KullaniciGuncellemeKesicisi(fixture, Email, enCok);
+        var kesici = new KullaniciGuncellemeKesicisi(fixture, Email, enCok, kilitle);
         using var kesicili = uygulama.Al(fixture.BaglantiCumlesi).WithWebHostBuilder(b => b.ConfigureTestServices(s =>
             s.ConfigureDbContext<AppDbContext>((_, o) => o.AddInterceptors(kesici))));
         var kurucu = new YetkiKurucu(fixture, kesicili);
@@ -169,9 +189,9 @@ public sealed class D46_EszamanliGirisTests(PostgresFixture fixture, DersProgram
 
 /// <summary>
 /// Bağlı context'in "AspNetUsers" güncelleme komutundan hemen önce aynı kullanıcının sayacını ayrı context'le bir artırır ve
-/// eşzamanlılık damgasını yeniler (başka bir isteğin başarısız girişi gibi); en çok <paramref name="enCok"/> kez.
+/// eşzamanlılık damgasını yeniler (başka bir isteğin başarısız girişi gibi); en çok <paramref name="enCok"/> kez. <paramref name="kilitle"/> ise hesabı da kilitler.
 /// </summary>
-internal sealed class KullaniciGuncellemeKesicisi(PostgresFixture fixture, string email, int enCok) : DbCommandInterceptor
+internal sealed class KullaniciGuncellemeKesicisi(PostgresFixture fixture, string email, int enCok, bool kilitle = false) : DbCommandInterceptor
 {
     public int Calisma { get; private set; }
 
@@ -195,9 +215,11 @@ internal sealed class KullaniciGuncellemeKesicisi(PostgresFixture fixture, strin
             return;
         Calisma++;
         var damga = Guid.NewGuid().ToString();
+        var kilit = kilitle ? DateTimeOffset.UtcNow.AddMinutes(15) : (DateTimeOffset?)null;
         await using var db = fixture.YeniContext();
         await db.Users.Where(u => u.Email == email).ExecuteUpdateAsync(u => u
             .SetProperty(k => k.AccessFailedCount, k => k.AccessFailedCount + 1)
-            .SetProperty(k => k.ConcurrencyStamp, damga));
+            .SetProperty(k => k.ConcurrencyStamp, damga)
+            .SetProperty(k => k.LockoutEnd, k => kilit ?? k.LockoutEnd));
     }
 }
