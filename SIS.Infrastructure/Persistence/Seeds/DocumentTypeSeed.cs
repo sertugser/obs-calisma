@@ -27,25 +27,13 @@ public static class DocumentTypeSeed
     /// </summary>
     public static async Task SeedAsync(AppDbContext context, CancellationToken ct = default)
     {
-        var existingCodes = await context.DocumentTypes
-            .Select(d => d.Code)
-            .ToListAsync(ct);
-        var existingSet = new HashSet<string>(existingCodes, StringComparer.Ordinal);
-
-        var toAdd = Defaults
-            .Where(d => !existingSet.Contains(d.Code))
-            .Select(d => new DocumentType
-            {
-                Code = d.Code,
-                Name = d.Name,
-                IsRequired = d.IsRequired,
-                SortOrder = d.SortOrder,
-            })
-            .ToList();
-
-        if (toAdd.Count == 0) return;
-
-        context.DocumentTypes.AddRange(toAdd);
-        await context.SaveChangesAsync(ct);
+        await Katalog.KatalogEsitleyici.EsitleAsync(context, new Katalog.KatalogTuru<DocumentType, DocumentType>
+        {
+            Ad = "belge-tipi",
+            Kayitlar = Defaults,
+            KayitAnahtari = d => d.Code,
+            VarlikAnahtari = d => d.Code,
+            Olustur = (d, _) => new DocumentType { Code = d.Code, Name = d.Name, IsRequired = d.IsRequired, SortOrder = d.SortOrder },
+        }, DateTime.UtcNow, ct);
     }
 }

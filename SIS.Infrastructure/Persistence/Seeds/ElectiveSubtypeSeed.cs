@@ -40,14 +40,13 @@ public static class ElectiveSubtypeSeed
     /// </summary>
     public static async Task SeedAsync(AppDbContext context, CancellationToken ct = default)
     {
-        var existingCodes = await context.ElectiveSubtypes
-            .Select(s => s.Code)
-            .ToListAsync(ct);
-        var existingSet = new HashSet<string>(existingCodes, StringComparer.Ordinal);
-
-        var toAdd = Defaults
-            .Where(d => !existingSet.Contains(d.Code))
-            .Select(d => new ElectiveSubtypeEntity
+        await Katalog.KatalogEsitleyici.EsitleAsync(context, new Katalog.KatalogTuru<ElectiveSubtypeEntity, ElectiveSubtypeEntity>
+        {
+            Ad = "secmeli-alt-turu",
+            Kayitlar = Defaults,
+            KayitAnahtari = d => d.Code,
+            VarlikAnahtari = d => d.Code,
+            Olustur = (d, simdi) => new ElectiveSubtypeEntity
             {
                 Code = d.Code,
                 Name = d.Name,
@@ -57,13 +56,8 @@ public static class ElectiveSubtypeSeed
                 ForbidsDepartment = d.ForbidsDepartment,
                 IsActive = d.IsActive,
                 SortOrder = d.SortOrder,
-                CreatedAt = DateTime.UtcNow,
-            })
-            .ToList();
-
-        if (toAdd.Count == 0) return;
-
-        context.ElectiveSubtypes.AddRange(toAdd);
-        await context.SaveChangesAsync(ct);
+                CreatedAt = simdi,
+            },
+        }, DateTime.UtcNow, ct);
     }
 }
