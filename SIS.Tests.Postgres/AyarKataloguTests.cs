@@ -28,7 +28,7 @@ public sealed class AyarKataloguTests(PostgresFixture fixture) : IAsyncLifetime
     public async Task TazeKurulum_UcTurdeHerAnahtarYazilir_VeKayitta()
     {
         await using var db = fixture.YeniContext();
-        Assert.Equal(97, await db.KatalogKayitlari.CountAsync(k => k.Tur == "sistem-ayari"));
+        Assert.Equal(98, await db.KatalogKayitlari.CountAsync(k => k.Tur == "sistem-ayari"));
         // Kodun okumadığı eski yumuşak kısıt anahtarları (Adım 3.4b) yazılmaz.
         Assert.False(await db.SystemConfigs.AnyAsync(c => c.Key.EndsWith(".Enabled") && c.Key.StartsWith("SoftConstraint.")));
         Assert.False(await db.SystemConfigs.AnyAsync(c => c.Key.StartsWith("SoftConstraint.Weight.")));
