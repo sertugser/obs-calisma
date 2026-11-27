@@ -5,7 +5,7 @@ namespace SIS.Infrastructure.Persistence.Seeds;
 
 /// <summary>
 /// Seeds the 21 standard "Açma Nedeni" values from Eski Proliz.
-/// Idempotent — only inserts missing rows by Code.
+/// Katalog kuralı: Code'su tabloda da katalog kaydında da olmayanı ekler; mevcut kayıtlara dokunmaz, yöneticinin sildiği geri gelmez.
 /// "Dönemsel (Teorik)" carries the special bypass flags that match Proliz behavior.
 /// </summary>
 public static class CurriculumCourseOpeningReasonSeed

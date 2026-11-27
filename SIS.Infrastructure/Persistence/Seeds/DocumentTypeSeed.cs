@@ -5,7 +5,8 @@ namespace SIS.Infrastructure.Persistence.Seeds;
 
 /// <summary>
 /// Faz 3a — öğrenci belge tipleri referans kataloğu seed'i.
-/// Idempotent merge: <see cref="Defaults"/> içindeki Code'su tabloda olmayanları ekler,
+/// Katalog kuralı: Code'su tabloda da katalog kaydında da olmayanı ekler; mevcut kayıtlara dokunmaz, yöneticinin sildiği geri gelmez.
+/// Eski not:
 /// mevcut kayıtlara dokunmaz. Bu katalog için admin CRUD yoktur (sadece seed).
 /// </summary>
 public static class DocumentTypeSeed
@@ -23,7 +24,7 @@ public static class DocumentTypeSeed
     };
 
     /// <summary>
-    /// Idempotent merge — sadece Code'su tabloda olmayanları ekler.
+    /// Katalog kuralı: Code'su tabloda da katalog kaydında da olmayanı ekler; mevcut kayıtlara dokunmaz, yöneticinin sildiği geri gelmez.
     /// </summary>
     public static async Task SeedAsync(AppDbContext context, CancellationToken ct = default)
     {

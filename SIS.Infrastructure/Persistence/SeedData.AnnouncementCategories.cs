@@ -17,8 +17,8 @@ public static partial class SeedData
             new() { Name = "Ders",     ColorHex = "#10b981", IconName = "BookOpen",      SortOrder = 40, IsSystem = true, CreatedAt = DateTime.UtcNow },
         };
 
-        // Katalog kuralı (anahtar: ad). Sistem kategorileri silinemez; yönetici adını değiştirirse
-        // katalog yeni bir kategori eklemez, eski ad kayıtta olduğu için atlanır.
+        // Katalog kuralı (anahtar: ad). Sistem kategorileri silinemez; ilk eşitlemeden sonra yönetici adını
+        // değiştirirse katalog yeni kategori eklemez (eski ad kayıtta olduğu için atlanır).
         await Katalog.KatalogEsitleyici.EsitleAsync(context, new Katalog.KatalogTuru<AnnouncementCategory, AnnouncementCategory>
         {
             Ad = "duyuru-kategorisi",
