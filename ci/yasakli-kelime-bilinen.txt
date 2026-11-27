@@ -126,6 +126,3 @@ SIS.Web/src/pages/curriculum-management/CurriculumCoursesView.tsx	rakip-proliz	2
 SIS.Web/src/pages/term-program-transfer/components/TargetTermPanel.tsx	rakip-proliz	1
 SIS.Web/src/types/registration.ts	rakip-proliz	2
 docs/CODEMAPS/elective-pool-system.md	rakip-proliz	1
-scripts/2026-05-16-duplicate-courses-cleanup.sql	kurum-ankara-bilim	1
-scripts/2026-05-27-backfill-national-credit.sql	kurum-ankara-bilim	1
-scripts/2026-05-30-grade-component-publish-permission.sql	yapay-zeka	1

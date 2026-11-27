@@ -64,7 +64,6 @@ public static partial class SeedData
         await SeedTermsAsync(context, gun);
         await SeedUsersAsync(context, userManager);
         await SeedRegistrationsAsync(context, gun);    // Geçmiş dönem transkript verileri (aktif döneme dokunmaz)
-        // SeedSectionSchedulesAsync devre dışı — schedule'lar scheduling sistemi tarafından oluşturulmalı
         await SeedTimeSlotsAsync(context);
         await SeedActiveTermSectionsAsync(context, gun); // etkin dönem şubeleri, hocalar ve program
     }

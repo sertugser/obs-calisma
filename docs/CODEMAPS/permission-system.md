@@ -131,7 +131,7 @@ JWT'ye permission claim **EKLENMEZ**. Permission listesi `/api/me/permissions` e
 
 ### Kullanıcı Yetki Grupları sayfası (Phase 2)
 
-[`UserPermissionGroupsPage.tsx`](../../SIS.Web/src/pages/UserPermissionGroupsPage.tsx) iki sekme: **Yetki Paketleri** (bundle CRUD) + **Rollere Yetki Ata** (`RolePermissionMatrix`). İkinci sekme `system.permission.view` yetkisi varsa görünür. Route + menü `system.permission-bundle.view` ile korunur (eski `menu.kullanici-yetki-gruplari.*` anahtarları kaldırıldı — bkz. `scripts/2026-05-26-permission-bundle-perm-standardize.sql`). Eski `/__dev/permission-matrix` dev-only route'u silindi.
+[`UserPermissionGroupsPage.tsx`](../../SIS.Web/src/pages/UserPermissionGroupsPage.tsx) iki sekme: **Yetki Paketleri** (bundle CRUD) + **Rollere Yetki Ata** (`RolePermissionMatrix`). İkinci sekme `system.permission.view` yetkisi varsa görünür. Route + menü `system.permission-bundle.view` ile korunur (eski `menu.kullanici-yetki-gruplari.*` anahtarları kaldırıldı — bkz. git geçmişindeki `scripts/2026-05-26-permission-bundle-perm-standardize.sql`; tek seferlik betikler Adım 3.9da kaldırıldı). Eski `/__dev/permission-matrix` dev-only route'u silindi.
 
 ### SidebarModules.ts (slim)
 
