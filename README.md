@@ -74,13 +74,9 @@ Alternatif olarak `SIS.API/appsettings.Development.json` dosyasını oluşturabi
 
 > **JWT Key minimum 32 karakter** olmalı. Aksi takdirde API açılışta `StartupSecurityValidator` tarafından reddedilir ve başlatılamaz.
 
-### 4. Veritabanı migration'larını uygula
+### 4. Veritabanını kur
 
-```bash
-dotnet ef database update -p SIS.Infrastructure -s SIS.API
-```
-
-Ya da kurulum komutuyla: migration'ları uygular, sistem verisini (roller, izinler, menü, ayarlar) yazar ve ilk yöneticiyi oluşturur. Tekrar çalıştırılması güvenlidir; yönetici varsa dokunmaz.
+Uygulama açılırken veri yazmaz; veritabanı kurulum komutuyla kurulur. Komut migration'ları uygular, sistem verisini (roller, izinler, menü, ayarlar) yazar ve ilk yöneticiyi oluşturur. Tekrar çalıştırılması güvenlidir; yönetici varsa dokunmaz.
 
 ```bash
 cd SIS.API
@@ -90,7 +86,8 @@ SIS_SETUP_ADMIN_EMAIL=yonetici@example.edu SIS_SETUP_ADMIN_PASSWORD='<güçlü p
 Kurumun akademik yapısı (fakülte, bölüm, program, ders, derslik ve kuruma özel açma nedenleri) `--kurum yerel` ile yazılır; çekirdek bu veriyi içermez. Örnek veri de istenirse sona `--seed-demo` eklenir (örnek veri bugün yerel kurumun yapısını kullanır ve onu da yazar). Varsayılan yönetici parolası yoktur; parola değişkeni boşsa ve yönetici yoksa komut durur.
 
 - Kurulum, sunucuyla aynı yapılandırmayı ister (bağlantı cümlesi, JWT ayarları, CORS, AllowedHosts); bunlar ortam değişkeniyle ya da `appsettings` ile verilir, komut satırı ayarları okunmaz.
-- `--seed-demo` bugün sabit parolalı örnek hesaplar (aşağıdaki tablo) da oluşturur; yalnız geliştirme veritabanında kullanılmalıdır.
+- `--seed-demo` örnek hesaplar (aşağıdaki tablo) oluşturur; yalnız geliştirme veritabanında kullanılmalıdır.
+- Kodu güncelledikten (yeni sürüm, `git pull`) sonra `setup` yeniden çalıştırılır: yeni migration'ları ve kataloğa eklenen yeni izin, menü ve ayarları yazar; yöneticinin değiştirdiğine dokunmaz.
 
 ### 5. Backend'i başlat
 

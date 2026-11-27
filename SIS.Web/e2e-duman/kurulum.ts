@@ -3,7 +3,8 @@ import { pbkdf2Sync, randomBytes } from 'node:crypto';
 
 // Her rol için seed'deki tek rollü ilk hesap (Id sırasıyla) seçilir. Veritabanına yalnız bu hesapların
 // parola özeti ile kilit ve sayaç alanları yazılır; e-postalar testlere ortam değişkeniyle geçer.
-// Öğrenci ön koşulu: öğrenci kaydı ve aktif dönemde notlu en az bir ders kaydı.
+// Öğrenci ön koşulu: öğrenci kaydı ve herhangi bir dönemde notlu en az bir ders kaydı
+// (örnek veride notlar geçmiş dönemlerde, etkin dönemde not yok).
 const SECIM = `
 WITH tek_rollu AS (
   SELECT ur."UserId" AS id, min(r."Name") AS rol
@@ -15,9 +16,7 @@ WITH tek_rollu AS (
      OR (t.rol = 'Student' AND EXISTS (
        SELECT 1 FROM "Students" s
        JOIN "CourseRegistrations" cr ON cr."StudentId" = s."Id"
-       JOIN "CourseSections" cs ON cs."Id" = cr."CourseSectionId"
-       JOIN "AcademicTerms" at ON at."Id" = cs."TermId"
-       WHERE s."UserId" = t.id AND cr."Grade" IS NOT NULL AND at."IsActivated" AND NOT at."IsCancelled"))
+       WHERE s."UserId" = t.id AND cr."Grade" IS NOT NULL))
   ORDER BY t.rol, t.id
 )
 UPDATE "AspNetUsers" u

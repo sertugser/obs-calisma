@@ -8,11 +8,14 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging.Abstractions;
+using SIS.Infrastructure.Persistence.Kurulum;
 using SIS.Infrastructure.Persistence;
 
 namespace SIS.Tests.Postgres;
 
-// A-01: boş (yalnız migration uygulanmış) veritabanında API açılışı, seed, admin girişi ve menü.
+// A-01: boş (yalnız migration uygulanmış) veritabanında API açılışı veri yazmaz (Adım 3.8); veri
+// `setup` ile gelir ve setup'ın yöneticisi giriş yapıp menüyü görür.
 [Collection(PostgresKoleksiyonu.Ad)]
 public sealed class KurulumVeGirisTests(PostgresFixture fixture) : IAsyncLifetime
 {
@@ -20,24 +23,34 @@ public sealed class KurulumVeGirisTests(PostgresFixture fixture) : IAsyncLifetim
 
     public Task DisposeAsync() => Task.CompletedTask;
 
+    [Theory]
+    [InlineData("Development")]
+    [InlineData("Production")]
+    public async Task Acilis_HicbirOrtamdaVeriYazmaz(string ortam)
+    {
+        var once = await SatirSayilariAsync();
+        var ilkDegerlendirme = await DegerlendirmeDonemiSayisiAsync();
+        await using var uygulama = new SisUygulamasi(ortam, fixture.BaglantiCumlesi);
+        using var istemci = uygulama.CreateClient();
+
+        var giris = await istemci.PostAsJsonAsync("/api/auth/login", new { email = "yok@ornek.test", password = RastgeleParola() });
+        Assert.Equal(HttpStatusCode.Unauthorized, giris.StatusCode);
+        var sonra = await SatirSayilariAsync();
+        Assert.Empty(sonra.Where(s => once.GetValueOrDefault(s.Key) != s.Value).Select(s => $"{s.Key}: {once.GetValueOrDefault(s.Key)} -> {s.Value}"));
+        // Arka plan işi en çok bir değerlendirme dönemi açabilir (madde 41); seed bundan fazlasını yazardı.
+        Assert.True(await DegerlendirmeDonemiSayisiAsync() <= ilkDegerlendirme + 1);
+    }
+
     [Fact]
-    public async Task Development_SeedAdminGirisiVeMenu()
+    public async Task Development_SetupYoneticisiGirerVeMenuyuGorur()
     {
         await using var uygulama = new SisUygulamasi("Development", fixture.BaglantiCumlesi);
-        using var istemci = uygulama.CreateClient(); // Development'ta seed açılışta çalışır.
-
-        // Seed'deki sabit parola teste yazılmaz: admin parolası çalışma anında rastgele değere çevrilir.
-        string email;
+        const string email = "yonetici@example.edu";
         var password = RastgeleParola();
-        using (var kapsam = uygulama.Services.CreateScope())
-        {
-            var kullanicilar = kapsam.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
-            var admin = Assert.Single(await kullanicilar.GetUsersInRoleAsync("SystemAdministrator"));
-            email = admin.Email!;
-            var jeton = await kullanicilar.GeneratePasswordResetTokenAsync(admin);
-            Assert.True((await kullanicilar.ResetPasswordAsync(admin, jeton, password)).Succeeded);
-        }
+        Assert.Equal(0, await KurulumCalistirici.CalistirAsync(
+            uygulama.Services, new KurulumSecenekleri(DemoVerisi: false, email, password), NullLogger.Instance));
 
+        using var istemci = uygulama.CreateClient();
         var giris = await istemci.PostAsJsonAsync("/api/auth/login", new { email, password });
         Assert.Equal(HttpStatusCode.OK, giris.StatusCode);
         using var girisGovde = JsonDocument.Parse(await giris.Content.ReadAsStringAsync());
@@ -52,19 +65,22 @@ public sealed class KurulumVeGirisTests(PostgresFixture fixture) : IAsyncLifetim
         Assert.True(menuGovde.RootElement.GetArrayLength() > 0);
     }
 
-    [Fact]
-    public async Task Production_SeedCalismaz_GirisBasarisiz()
+    private async Task<int> DegerlendirmeDonemiSayisiAsync()
     {
-        await using var uygulama = new SisUygulamasi("Production", fixture.BaglantiCumlesi);
-        using var istemci = uygulama.CreateClient();
+        await using var db = fixture.YeniContext();
+        return await db.EvaluationPeriods.CountAsync();
+    }
 
-        await using (var db = fixture.YeniContext())
-        {
-            Assert.Equal(0, await db.Users.CountAsync());
-        }
-
-        var giris = await istemci.PostAsJsonAsync("/api/auth/login", new { email = "yok@ornek.test", password = RastgeleParola() });
-        Assert.Equal(HttpStatusCode.Unauthorized, giris.StatusCode);
+    // Sayımın dışında: denetim günlüğü ve değerlendirme dönemleri. Değerlendirme dönemini açılışta
+    // seed değil arka plan işi (EvaluationPeriodOpenerJob) açar; migration'ın eklediği yaz dönemi için
+    // açtığı kapanmış dönem Adım 2 kapanış listesinin 41 numaralı maddesi (bugünkü davranış).
+    private async Task<SortedDictionary<string, long>> SatirSayilariAsync()
+    {
+        await using var baglanti = await fixture.BaglantiAcAsync();
+        var sayilar = await PostgresFixture.SatirSayilariAsync(baglanti);
+        sayilar.Remove("AuditLogs");
+        sayilar.Remove("EvaluationPeriods");
+        return new SortedDictionary<string, long>(sayilar);
     }
 
     // Büyük harf, küçük harf, rakam ve simge içeren rastgele parola.

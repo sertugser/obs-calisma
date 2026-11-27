@@ -185,7 +185,7 @@ Sprint 3'te 7 hardcoded role array silindi (-449 satır). Sadece type'lar + help
 | `MenuKatalogu` | [MenuKatalogu.cs](../../SIS.Infrastructure/Persistence/Katalog/MenuKatalogu.cs) | 18 modül + 74 öğe | Eksik olanı ekler, yöneticinin sildiğini geri getirmez (eski `MenuStructureSeed` yalnız eşdeğerlik testi için duruyor) |
 | `RolePermissionSeed` | [RolePermissionSeed.cs](../../SIS.Infrastructure/Persistence/Seeds/RolePermissionSeed.cs) | 6 rol, 432 atama | Liste; yazma işi rol-izin kataloğunda (`Persistence/Katalog/RolIzinKatalogu.cs`). SystemAdmin **YOK** (locked) |
 
-`SeedData.SeedAsync` orchestrator [SeedData.cs:23-26](../../SIS.Infrastructure/Persistence/SeedData.cs) içinde sırayla çağırır.
+`setup` komutu (`KurulumCalistirici`) ve `SeedData.SeedSystemAsync` [SeedData.cs:23-26](../../SIS.Infrastructure/Persistence/SeedData.cs) içinde sırayla çağırır.
 
 ## Kararlar (Locked)
 
