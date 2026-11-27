@@ -142,7 +142,7 @@ SIS.Infrastructure/   → EF Core, DbContext, Repositories
 SIS.API/              → Controllers, Middleware, DI
 SIS.Web/              → React frontend (Vite + TypeScript + Tailwind)
 SIS.Tests/            → Unit testler
-scripts/              → Manuel SQL migration ve yetki yamaları
+scripts/              → Yardımcı betikler (yasaklı kelime, npm denetimi); veri betiği yok, sistem verisi katalogdan gelir
 ```
 
 ## Komutlar

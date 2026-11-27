@@ -6,7 +6,7 @@
 //
 // Taranan kaynaklar:
 //   - src/App.tsx                    → Route → Component eşlemesi + import'lar
-//   - SIS.Infrastructure/Persistence/Seeds/MenuStructureSeed.cs → modüller (gruplar) → sayfalar
+//   - SIS.Infrastructure/Persistence/Katalog/MenuKatalogu.cs → modüller (gruplar) → sayfalar
 //   - SIS.Infrastructure/Persistence/Seeds/RolePermissionSeed.cs → permission → roller
 //   - src/pages/*.tsx                → sekmeler, dialog/sheet sayısı, hook kullanımı
 //   - src/hooks/*.ts & src/api/*.ts  → API endpoint'leri
@@ -116,54 +116,41 @@ function resolveRoles(permKey, allowedRolesCsv, roleToKeys) {
   return [...granted].map(r => ROLE_DISPLAY[r] ?? r).sort();
 }
 
-// MenuStructureSeed.cs: modüller (gruplar) → sayfalar (route + label + permission)
+// MenuKatalogu.cs: modüller (gruplar) → sayfalar (route + label + permission)
 function parseMenuStructure(roleToKeys) {
-  const content = read(path.join(SEEDS_DIR, 'MenuStructureSeed.cs'));
+  const content = read(path.join(REPO_ROOT, 'SIS.Infrastructure', 'Persistence', 'Katalog', 'MenuKatalogu.cs'));
+  const str = '(?:"([^"]*)"|null)';
 
-  // 1) Modül tanımları: var <name> = new MenuModule { Label = "...", AllowedRolesCsv = "...", SortOrder = N }
-  const modules = new Map(); // varName → { label, allowedRolesCsv, sortOrder }
-  const moduleRe = /var\s+(\w+)\s*=\s*new\s+MenuModule\s*\{/g;
+  // 1) Modüller: new("slug", "ust"|null, "Etiket", "Simge"|null, sira, "Roller"|null)
+  const modules = new Map(); // slug → { label, allowedRolesCsv, sortOrder }
+  const moduleRe = new RegExp(String.raw`new\(\s*"([^"]+)"\s*,\s*${str}\s*,\s*"([^"]+)"\s*,\s*${str}\s*,\s*(\d+)\s*,\s*${str}\s*\)`, 'g');
+  const modulBolumu = content.slice(content.indexOf('Moduller ='), content.indexOf('Ogeler ='));
   let mm;
-  while ((mm = moduleRe.exec(content)) !== null) {
-    const varName = mm[1];
-    const openIdx = mm.index + mm[0].length;
-    const closeIdx = findMatchingBracket(content, openIdx, '{', '}');
-    const body = content.slice(openIdx, closeIdx);
-    const label = (body.match(/Label\s*=\s*"([^"]+)"/) ?? [])[1] ?? varName;
-    const allowedRolesCsv = (body.match(/AllowedRolesCsv\s*=\s*"([^"]+)"/) ?? [])[1] ?? null;
-    const sortOrder = parseInt((body.match(/SortOrder\s*=\s*(\d+)/) ?? [])[1] ?? '999', 10);
-    modules.set(varName, { label, allowedRolesCsv, sortOrder });
+  while ((mm = moduleRe.exec(modulBolumu)) !== null) {
+    const [, slug, , label, , sortOrder, allowedRolesCsv] = mm;
+    modules.set(slug, { label, allowedRolesCsv: allowedRolesCsv ?? null, sortOrder: parseInt(sortOrder, 10) });
   }
 
-  // 2) Item atamaları: <name>.Items = new List<MenuItem> { BuildItem(...), ... }
+  // 2) Öğeler: new("modulSlug", "Etiket", "/yol", "slug", sira, "izin"[, true])
   const byRoute = new Map(); // route → { label, groupLabels:Set, roles:Set, sortOrder }
-  const itemsRe = /(\w+)\.Items\s*=\s*new\s+List<MenuItem>\s*\{/g;
+  const itemRe = /new\(\s*"([^"]+)"\s*,\s*"([^"]+)"\s*,\s*"([^"]+)"\s*,\s*"([^"]+)"\s*,\s*\d+\s*,\s*"([^"]+)"/g;
+  const ogeBolumu = content.slice(content.indexOf('Ogeler ='));
   let im;
-  while ((im = itemsRe.exec(content)) !== null) {
-    const varName = im[1];
-    const mod = modules.get(varName);
+  while ((im = itemRe.exec(ogeBolumu)) !== null) {
+    const [, moduleSlug, label, route, , permKey] = im;
+    const mod = modules.get(moduleSlug);
     if (!mod) continue;
-    const openIdx = im.index + im[0].length;
-    const closeIdx = findMatchingBracket(content, openIdx, '{', '}');
-    const block = content.slice(openIdx, closeIdx);
-
-    // BuildItem(permissions, "label", "/route", "slug", N, "permKey"[, openInNewTab: true])
-    const biRe = /BuildItem\(\s*permissions\s*,\s*"([^"]+)"\s*,\s*"([^"]+)"\s*,\s*"([^"]+)"\s*,\s*\d+\s*,\s*"([^"]+)"/g;
-    let bm;
-    while ((bm = biRe.exec(block)) !== null) {
-      const [, label, route, , permKey] = bm;
-      const roles = resolveRoles(permKey, mod.allowedRolesCsv, roleToKeys);
-      const info = byRoute.get(route) ?? {
-        label,
-        groupLabels: new Set(),
-        roles: new Set(),
-        sortOrder: mod.sortOrder,
-      };
-      info.groupLabels.add(mod.label);
-      for (const r of roles) info.roles.add(r);
-      info.sortOrder = Math.min(info.sortOrder, mod.sortOrder);
-      byRoute.set(route, info);
-    }
+    const roles = resolveRoles(permKey, mod.allowedRolesCsv, roleToKeys);
+    const info = byRoute.get(route) ?? {
+      label,
+      groupLabels: new Set(),
+      roles: new Set(),
+      sortOrder: mod.sortOrder,
+    };
+    info.groupLabels.add(mod.label);
+    for (const r of roles) info.roles.add(r);
+    info.sortOrder = Math.min(info.sortOrder, mod.sortOrder);
+    byRoute.set(route, info);
   }
   return byRoute;
 }

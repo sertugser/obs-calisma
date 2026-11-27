@@ -182,7 +182,8 @@ public static partial class SeedData
 
             // ── Algoritma Parametreleri (eski SchedulingAlgorithmConfigs'tan merge — 2026-05-09) ─
             // 2026-05-19: 4 hard threshold flag'i (LunchBreak.IsHard, AllowSameCourseSectionOverlap,
-            // AmphiThresholdEnabled, ClassroomTypeRequirementEnabled) kaldırıldı. Bu kuralların
+            // AmphiThresholdEnabled, ClassroomTypeRequirementEnabled) kaldırıldı (not, 27 Kas: LunchBreak.IsHard
+            // TimeSlotService zaman dilimi üretiminde hâlâ okuyor; yukarıda tanımlı kalır, Adım 3 kararı). Bu kuralların
             // açma/kapama + Hard/Soft toggle + alt-parametreleri tek otorite olarak
             // ConstraintDefinitions["H13"|"H8"|"H4"].Category + Parameters JSON'a (Kısıtlar sayfası)
             // taşındı. Algoritma Parametreleri sayfasında HardThreshold kategorisi artık boştur.

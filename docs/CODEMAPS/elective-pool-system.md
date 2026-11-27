@@ -119,7 +119,7 @@ her ders için müfredattaki aday slot listesi. Çoğul (Karar #5).
 ### Infrastructure
 - [AppDbContext.cs](../../SIS.Infrastructure/Persistence/AppDbContext.cs) — ElectiveGroup + ElectiveSubtypeEntity config
 - [ElectiveSubtypeSeed.cs](../../SIS.Infrastructure/Persistence/Seeds/ElectiveSubtypeSeed.cs) — TE/NDE/OC default seed (idempotent merge)
-- [MenuStructureSeed.cs](../../SIS.Infrastructure/Persistence/Seeds/MenuStructureSeed.cs) — `Ders İşlemleri > Seçmeli Tipleri` (B3c)
+- [MenuKatalogu.cs](../../SIS.Infrastructure/Persistence/Katalog/MenuKatalogu.cs) — `Ders İşlemleri > Seçmeli Tipleri` (B3c)
 - Migration'lar: `20260427103938_AddElectiveGroupDepartmentId`, `20260427142243_AddCurriculumElectivePoolSlotName`, `20260427144934_AddElectiveSubtypesTable` (+ backfill enum→ID), `20260427200247_DropCurriculumCourseElectiveGroupId`, `20260427200835_DropCurriculumCourseGroupCode`, `20260427205823_DropElectiveGroupElectiveSubtypeColumn` (Faz E)
 
 ### API
