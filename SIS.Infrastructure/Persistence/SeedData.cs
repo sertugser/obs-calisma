@@ -9,15 +9,6 @@ namespace SIS.Infrastructure.Persistence;
 
 public static partial class SeedData
 {
-    public static async Task SeedAsync(
-        AppDbContext context,
-        UserManager<ApplicationUser> userManager,
-        RoleManager<IdentityRole<int>> roleManager)
-    {
-        var saatDilimiYeni = await SeedSystemAsync(context, roleManager);
-        await SeedDemoAsync(context, userManager, saatDilimiYeni); // yerel kurum verisini de yazar
-    }
-
     // Her kurulumda gereken sistem verisi. Örnek veriye bağlı değildir.
     // Kurum saat dilimi anahtarı bu koşuda ilk kez yazıldıysa true döner.
     public static async Task<bool> SeedSystemAsync(

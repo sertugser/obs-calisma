@@ -65,7 +65,7 @@ Beklenen: **5 satır** dönmeli.
 
 ### 2.3 Application restart
 
-API process'i restart edilir. İlk açılışta `SeedData.SeedAsync` orchestrator otomatik çağrılır → 3 RBAC seed sırayla çalışır:
+Sürüm yükseltmesinden sonra `setup` komutu çalıştırılır (`SIS.API setup`); açılış veri yazmaz. Kurulum sırayla şunları eşitler:
 1. Sistem kataloğu (`SistemKatalogu.EsitleAsync`) — roller ve izinler; eksik olanı ekler (~255 key)
 2. Menü kataloğu (`MenuKatalogu.EsitleAsync`) — 18 modül + 74 öğe; eksik olanı ekler, yöneticinin sildiğini geri getirmez
 3. Rol-izin kataloğu (`RolIzinKatalogu.EsitleAsync`) — 432 atama, 6 rol; eksik olanı ekler, kaldırılanı geri getirmez
