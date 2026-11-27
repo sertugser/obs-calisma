@@ -69,8 +69,9 @@ public static class KurulumCalistirici
             gunluk.LogInformation("Kurulum: migration'lar uygulandı.");
 
             adim = "sistem verisi";
+            var saatDilimiYeni = false;
             await AdimdaCalistirAsync(servisler, async sp =>
-                await SeedData.SeedSystemAsync(
+                saatDilimiYeni = await SeedData.SeedSystemAsync(
                     sp.GetRequiredService<AppDbContext>(),
                     sp.GetRequiredService<RoleManager<IdentityRole<int>>>()), ct);
             gunluk.LogInformation("Kurulum: sistem verisi yazıldı.");
@@ -97,7 +98,7 @@ public static class KurulumCalistirici
                 await AdimdaCalistirAsync(servisler, async sp =>
                     await SeedData.SeedDemoAsync(
                         sp.GetRequiredService<AppDbContext>(),
-                        sp.GetRequiredService<UserManager<ApplicationUser>>(),
+                        sp.GetRequiredService<UserManager<ApplicationUser>>(), saatDilimiYeni,
                         secenekler.DemoTarihi ?? sp.GetRequiredService<IDateTimeProvider>().UtcNow), ct);
                 gunluk.LogInformation("Kurulum: örnek veri yazıldı.");
             }

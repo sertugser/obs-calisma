@@ -91,6 +91,25 @@ public sealed class KurulumKomutuTests(PostgresFixture fixture) : IAsyncLifetime
         Assert.Equal(0, await db.Faculties.CountAsync());
         Assert.Equal(0, await db.Courses.CountAsync());
         Assert.Equal(0, await db.CourseRegistrations.CountAsync());
+        Assert.Equal("Etc/UTC", await db.SystemConfigs.Where(c => c.Key == "Institution.TimeZone").Select(c => c.Value).SingleAsync());
+    }
+
+    // Bilinen sınır: saat dilimi anahtarı düz kurulumda yazıldığı için sonraki örnek veri kurulumu onu
+    // yöneticinin değeri sayar ve İstanbul'a çekmez.
+    [Fact]
+    public async Task DuzKurulumdanSonraOrnekVeriyleKurulum_SaatDilimiEtcUtcKalir()
+    {
+        await using var uygulama = new SisUygulamasi(fixture.BaglantiCumlesi);
+        Assert.Equal(0, await KurAsync(uygulama, "yonetici@example.edu", RastgeleParola()));
+
+        Assert.Equal(0, await KurulumCalistirici.CalistirAsync(
+            uygulama.Services,
+            new KurulumSecenekleri(DemoVerisi: true, "yonetici@example.edu", RastgeleParola()),
+            NullLogger.Instance));
+
+        await using var db = fixture.YeniContext();
+        Assert.True(await db.Students.AnyAsync()); // örnek veri yazıldı
+        Assert.Equal("Etc/UTC", await db.SystemConfigs.Where(c => c.Key == "Institution.TimeZone").Select(c => c.Value).SingleAsync());
     }
 
     [Fact]
@@ -176,6 +195,8 @@ public sealed class KurulumKomutuTests(PostgresFixture fixture) : IAsyncLifetime
             NullLogger.Instance));
 
         await using var db = fixture.YeniContext();
+        // Saat dilimi anahtarı bu kurulumda ilk kez yazıldı: örnek veri örnek kurumun dilimini atar.
+        Assert.Equal("Europe/Istanbul", await db.SystemConfigs.Where(c => c.Key == "Institution.TimeZone").Select(c => c.Value).SingleAsync());
         var etkin = await db.AcademicTerms.Where(t => t.IsActivated).ToListAsync();
         Assert.Equal((2026, TermType.Fall), (Assert.Single(etkin).Year, etkin[0].TermType));
         // Güz 2022'den Güz 2026'ya dokuz dönem (gelecekteki Bahar 2027 yok); migration'ın yaz dönemi ayrıca durur.
@@ -193,6 +214,22 @@ public sealed class KurulumKomutuTests(PostgresFixture fixture) : IAsyncLifetime
         Assert.All(subeler, s => { Assert.NotNull(s.InstructorId); Assert.NotEmpty(s.SectionSchedules); });
         var hocaDilim = subeler.SelectMany(s => s.SectionSchedules.Select(ss => (s.InstructorId, ss.TimeSlotId))).ToList();
         Assert.Equal(hocaDilim.Count, hocaDilim.Distinct().Count());
+
+        // Örnek veri yeniden kurulunca yöneticinin kaydettiği saat dilimi (bilerek kaydedilmiş Etc/UTC dahil) ezilmez.
+        foreach (var kayitli in new[] { "Europe/Berlin", "Etc/UTC" })
+        {
+            await using (var yaz = fixture.YeniContext())
+            {
+                (await yaz.SystemConfigs.SingleAsync(c => c.Key == "Institution.TimeZone")).Value = kayitli;
+                await yaz.SaveChangesAsync();
+            }
+            Assert.Equal(0, await KurulumCalistirici.CalistirAsync(
+                uygulama.Services,
+                new KurulumSecenekleri(DemoVerisi: true, "yonetici@example.edu", RastgeleParola(), DemoTarihi: gun),
+                NullLogger.Instance));
+            await using var oku = fixture.YeniContext();
+            Assert.Equal(kayitli, await oku.SystemConfigs.Where(c => c.Key == "Institution.TimeZone").Select(c => c.Value).SingleAsync());
+        }
     }
 
     [Fact]

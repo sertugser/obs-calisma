@@ -1,5 +1,4 @@
 using Microsoft.EntityFrameworkCore;
-using SIS.Application.Common.Time;
 using SIS.Domain.Entities;
 using SIS.Domain.Enums;
 
@@ -79,11 +78,6 @@ public static partial class SeedData
                 donem.IsActivated = false;
             (await context.AcademicTerms.SingleAsync(t => t.Year == guncel.Yil && t.TermType == guncel.Tur)).IsActivated = true;
 
-            // Taze örnek veride kurum saat dilimi hâlâ varsayılandaysa örnek kurumunkine çekilir;
-            // örnek veri yeniden çalışınca yöneticinin seçimi ezilmez.
-            var timeZoneConfig = await context.SystemConfigs.FirstOrDefaultAsync(c => c.Key == InstitutionTimeZoneValidator.ConfigKey);
-            if (timeZoneConfig?.Value == InstitutionTimeZoneValidator.DefaultId)
-                timeZoneConfig.Value = "Europe/Istanbul";
             await context.SaveChangesAsync();
         }
     }

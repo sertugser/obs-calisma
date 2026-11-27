@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using SIS.Application.Common.Time;
 using SIS.Domain.Entities;
 
 namespace SIS.Infrastructure.Persistence;
@@ -48,7 +49,8 @@ public static partial class SeedData
         "SoftConstraint.Weight.S12",
     ];
 
-    public static async Task SeedSystemConfigAsync(AppDbContext context)
+    // Kurum saat dilimi anahtarı bu çağrıda ilk kez eklendiyse true döner.
+    public static async Task<bool> SeedSystemConfigAsync(AppDbContext context)
     {
         var configs = new List<SystemConfig>
         {
@@ -72,7 +74,7 @@ public static partial class SeedData
             new() { Key = "Security.PasswordRotationEnabled", Value = "true", Category = "Security", DataType = "bool", Description = "Kullanıcı şifreleri periyodik olarak değiştirmeye zorlanır mı?" },
             new() { Key = "Security.PasswordRotationMonths", Value = "6", Category = "Security", DataType = "int", Description = "Şifre değiştirme periyodu (ay)" },
             new() { Key = "Localization.DefaultLanguage", Value = "tr-TR", Category = "Localization", DataType = "string", Description = "Sistem varsayılan arayüz dili" },
-            new() { Key = "Institution.TimeZone", Value = "Etc/UTC", Category = "Localization", DataType = "string", Description = "Kurumun saat dilimi (IANA adı, ör. Etc/UTC). Takvim günü olarak girilen son günlerin bittiği anı belirler." },
+            new() { Key = InstitutionTimeZoneValidator.ConfigKey, Value = InstitutionTimeZoneValidator.DefaultId, Category = "Localization", DataType = "string", Description = "Kurumun saat dilimi (IANA adı, ör. Etc/UTC). Takvim günü olarak girilen son günlerin bittiği anı belirler." },
 
             // ── Akademisyen / Başvuru Master Anahtarları ─────────
             new() { Key = "Instructor.StudentContactInfoVisible", Value = "true", Category = "Instructor", DataType = "bool", Description = "Akademisyen ekranlarında öğrenci e-posta ve GSM bilgileri gösterilsin mi?" },
@@ -223,6 +225,10 @@ public static partial class SeedData
             .Where(config => !RemovedSystemConfigKeys.Contains(config.Key, StringComparer.OrdinalIgnoreCase))
             .ToList();
 
+        // Saat dilimi anahtarı eşitlemeden önce yoksa ve sonra varsa bu koşuda ilk kez yazılmıştır.
+        // Yöneticinin sildiği anahtarı katalog geri eklemez; o durumda da false döner.
+        var saatDilimiOnceVardi = await SaatDilimiAnahtariVarAsync(context);
+
         // Katalog kuralı: eksik anahtar eklenir, yöneticinin sildiği geri gelmez. Var olan satıra hiç
         // dokunulmaz: değer ve veri tipi yöneticinin; kategori zamanlama yükleyicisinde süzgeç olarak
         // kullanılıyor; açıklamaları migration'lar sonradan değiştirmiş. Kataloğun alanları Adım 3.4b'de.
@@ -234,5 +240,10 @@ public static partial class SeedData
             VarlikAnahtari = c => c.Key,
             Olustur = (c, _) => c,
         }, DateTime.UtcNow);
+
+        return !saatDilimiOnceVardi && await SaatDilimiAnahtariVarAsync(context);
     }
+
+    private static Task<bool> SaatDilimiAnahtariVarAsync(AppDbContext context) =>
+        context.SystemConfigs.AnyAsync(c => c.Key == InstitutionTimeZoneValidator.ConfigKey);
 }

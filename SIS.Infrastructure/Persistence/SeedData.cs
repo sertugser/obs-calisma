@@ -1,4 +1,6 @@
 using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
+using SIS.Application.Common.Time;
 using SIS.Domain.Entities;
 using SIS.Infrastructure.Persistence.Seeds;
 using SIS.Infrastructure.Services.CalendarGenerator;
@@ -8,7 +10,8 @@ namespace SIS.Infrastructure.Persistence;
 public static partial class SeedData
 {
     // Her kurulumda gereken sistem verisi. Örnek veriye bağlı değildir.
-    public static async Task SeedSystemAsync(
+    // Kurum saat dilimi anahtarı bu koşuda ilk kez yazıldıysa true döner.
+    public static async Task<bool> SeedSystemAsync(
         AppDbContext context,
         RoleManager<IdentityRole<int>> roleManager)
     {
@@ -16,7 +19,7 @@ public static partial class SeedData
         await Katalog.SistemKatalogu.EsitleAsync(context, DateTime.UtcNow);
         await new CalendarTemplateService(context).EnsureDefaultsAsync();
         // SystemConfig, zaman dilimlerinden önce yazılmalı: zaman dilimi üretimi Schedule.* anahtarlarını okuyor.
-        await SeedSystemConfigAsync(context);
+        var saatDilimiYeni = await SeedSystemConfigAsync(context);
         await SeedWebModuleSettingsAsync(context);
         await SeedAnnouncementCategoriesAsync(context);
         await SeedConstraintDefinitionsAsync(context);
@@ -39,15 +42,19 @@ public static partial class SeedData
 
         // ── Rapor Motoru (Faz 1): handler'ı olan raporları idempotent ekle ──
         await ReportSeed.SeedAsync(context);
+        return saatDilimiYeni;
     }
 
     // Örnek (demo) veri: kullanıcılar, dönemler, kayıtlar. Sistem verisinden sonra çalışır.
     // bugun: dönemlerin ve not geçmişinin göre kurulduğu gün (verilmezse şimdiki UTC zamanı).
+    // Saat dilimi ilk adımdır: sonraki bir adım yarıda kesilse de atama yapılmış olur.
     public static async Task SeedDemoAsync(
         AppDbContext context,
         UserManager<ApplicationUser> userManager,
+        bool kurumSaatDilimiYeni,
         DateTime? bugun = null)
     {
+        await SeedDemoTimeZoneAsync(context, kurumSaatDilimiYeni);
         var gun = DateTime.SpecifyKind((bugun ?? DateTime.UtcNow).Date, DateTimeKind.Utc);
         // Örnek veri bugün yerel kurumun akademik yapısına dayanıyor; yapı yoksa önce o yazılır
         // (Adım 3.7'de demo üretici kendi sentetik kurumunu kuracak).
@@ -57,5 +64,16 @@ public static partial class SeedData
         await SeedRegistrationsAsync(context, gun);    // Geçmiş dönem transkript verileri (aktif döneme dokunmaz)
         await SeedTimeSlotsAsync(context);
         await SeedActiveTermSectionsAsync(context, gun); // etkin dönem şubeleri, hocalar ve program
+    }
+
+    // SystemConfig'te "sonradan güncellendi" izi yok; atama yalnız anahtar bu kurulum koşusunda ilk kez
+    // yazıldıysa yapılır. Yöneticinin kaydettiği değer (bilerek kaydedilmiş Etc/UTC dahil) ezilmez.
+    private static async Task SeedDemoTimeZoneAsync(AppDbContext context, bool kurumSaatDilimiYeni)
+    {
+        if (!kurumSaatDilimiYeni)
+            return;
+        var ayar = await context.SystemConfigs.SingleAsync(c => c.Key == InstitutionTimeZoneValidator.ConfigKey);
+        ayar.Value = "Europe/Istanbul";
+        await context.SaveChangesAsync();
     }
 }

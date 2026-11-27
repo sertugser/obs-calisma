@@ -83,8 +83,9 @@ public class AcademicCalendarService : IAcademicCalendarService
             _ctx.TermAcademicCalendars.Add(cal);
         }
 
+        var institutionTimeZone = await _institutionTimeZone.GetAsync(ct); // bozuk ayar kayıttan önce hata verir
         await _ctx.SaveChangesAsync(ct);
-        return ToDto(term, term.AcademicCalendar!, await _institutionTimeZone.GetAsync(ct));
+        return ToDto(term, term.AcademicCalendar!, institutionTimeZone);
     }
 
     public async Task UpdatePhaseOverrideAsync(int termId, UpdateCalendarPhaseOverrideDto dto, CancellationToken ct = default)
@@ -145,8 +146,9 @@ public class AcademicCalendarService : IAcademicCalendarService
             term.AcademicCalendar.UpdatedAt = _clock.UtcNow;
         }
 
+        var institutionTimeZone = await _institutionTimeZone.GetAsync(ct); // bozuk ayar kayıttan önce hata verir
         await _ctx.SaveChangesAsync(ct);
-        return BuildStudentDto(term, _clock.UtcNow, await _institutionTimeZone.GetAsync(ct));
+        return BuildStudentDto(term, _clock.UtcNow, institutionTimeZone);
     }
 
     public async Task<StudentAcademicCalendarDto> PreviewEventMoveAsync(int termId, int eventId, PreviewTermCalendarEventMoveDto dto, CancellationToken ct = default)
