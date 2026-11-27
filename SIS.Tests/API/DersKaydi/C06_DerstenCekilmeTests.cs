@@ -12,8 +12,18 @@ namespace SIS.Tests.API.DersKaydi;
 // azami çekilme sayıları (6 / 3) üretim varsayılanlarıdır ve testte yalnız gözlenen sınır olarak geçer.
 // Her ret testi aynı kurulumda yalnız ölçülen koşulu düzeltip çekilmenin kabul edildiğini de gösterir.
 // Kurum saat dilimi açıkça verilir (Europe/Istanbul, +03:00): çekilme son günü yerel gün sonunda kapanır.
+// Çekilme ekle-bırak bittikten sonra açılır (ortamda ekle-bırak 28 Mart, İstanbul 28 Mart 21:00Z); testler pencere içinde 10 Nisan'dadır.
 public class C06_DerstenCekilmeTests
 {
+    private static readonly DateTime PencereIci = new(2025, 4, 10, 12, 0, 0, DateTimeKind.Utc);
+
+    private static DersKaydiOrtami Ortam(int tamamlananDonem = 4)
+    {
+        var o = new DersKaydiOrtami(tamamlananDonem);
+        o.Saat.UtcNow = PencereIci;
+        return o;
+    }
+
     private static Task<RegistrationResponseDto> Cek(DersKaydiOrtami o, CourseRegistration k) =>
         new CourseRegistrationService(o.Db, o.Dogrulama(), o.Saat, institutionTimeZone: new SabitKurumSaatDilimi("Europe/Istanbul"))
             .WithdrawCourseAsync(o.Ogrenci.Id, k.Id);
@@ -55,7 +65,7 @@ public class C06_DerstenCekilmeTests
     [Fact]
     public async Task C06_Cekilme_KosullarSaglaninca_KabulEdilirVeKalicidir()
     {
-        using var o = new DersKaydiOrtami();
+        using var o = Ortam();
         var (a, b) = IkiDers(o);
 
         var y = await Cek(o, a);
@@ -64,11 +74,13 @@ public class C06_DerstenCekilmeTests
         Assert.Equal(RegistrationStatus.Active, o.Db.CourseRegistrations.Single(r => r.Id == b.Id).Status);
     }
 
-    // Kol 1: çekilme penceresi (TermStart ≤ an < son günün yerel bitişi). Son gün 10 Mayıs, İstanbul'da
-    // 11 Mayıs 00:00 yerel = 10 Mayıs 21:00Z'de kapanır. Karşı örnek: saat pencereye alınınca kabul.
+    // Kol 1: çekilme penceresi (ekle-bırak son gününün yerel bitişi ≤ an < son günün yerel bitişi). Ekle-bırak 28 Mart, İstanbul'da
+    // 28 Mart 21:00Z'de biter; son gün 10 Mayıs, 10 Mayıs 21:00Z'de kapanır. Karşı örnek: saat pencereye alınınca kabul.
     [Theory]
     [InlineData("2025-02-14T23:59:59", false)]
-    [InlineData("2025-02-15T00:00:00", true)]
+    [InlineData("2025-02-15T00:00:00", false)]
+    [InlineData("2025-03-28T20:59:59", false)]
+    [InlineData("2025-03-28T21:00:00", true)]
     [InlineData("2025-05-10T00:00:00", true)]
     [InlineData("2025-05-10T00:00:01", true)]
     [InlineData("2025-05-10T20:59:59", true)]
@@ -76,7 +88,7 @@ public class C06_DerstenCekilmeTests
     [InlineData("2025-05-11T12:00:00", false)]
     public async Task C06_Cekilme_PencereSinirlari_TermStatus(string an, bool kabul)
     {
-        using var o = new DersKaydiOrtami();
+        using var o = Ortam();
         var (a, _) = IkiDers(o);
         o.Saat.UtcNow = DateTime.Parse(an, CultureInfo.InvariantCulture, DateTimeStyles.AdjustToUniversal | DateTimeStyles.AssumeUniversal);
 
@@ -89,14 +101,14 @@ public class C06_DerstenCekilmeTests
         }
         Assert.Equal("TermStatus", TekRet(y));
         Degismedi(o, a.Id, RegistrationStatus.Active);
-        o.Saat.UtcNow = new DateTime(2025, 3, 10, 12, 0, 0, DateTimeKind.Utc);
+        o.Saat.UtcNow = PencereIci;
         Cekildi(o, await Cek(o, a), a.Id);
     }
 
     [Fact]
     public async Task C06_Cekilme_DonemPasifse_TermStatusIleReddedilir()
     {
-        using var o = new DersKaydiOrtami();
+        using var o = Ortam();
         var (a, _) = IkiDers(o);
         o.EtkinDonem.IsActivated = false;
         o.Db.SaveChanges();
@@ -113,7 +125,7 @@ public class C06_DerstenCekilmeTests
     [Fact]
     public async Task C06_Cekilme_KayitActiveDegilse_WithdrawStatusIleReddedilir()
     {
-        using var o = new DersKaydiOrtami();
+        using var o = Ortam();
         var (a, _) = IkiDers(o);
         a.Status = RegistrationStatus.Draft;
         o.Db.SaveChanges();
@@ -130,7 +142,7 @@ public class C06_DerstenCekilmeTests
     [Fact]
     public async Task C06_Cekilme_TekAktifDers_LastCourseIleReddedilir()
     {
-        using var o = new DersKaydiOrtami();
+        using var o = Ortam();
         var a = o.AktifKayitEkle(o.DersEkle("AAA101"));
 
         Assert.Equal("LastCourse", TekRet(await Cek(o, a)));
@@ -146,7 +158,7 @@ public class C06_DerstenCekilmeTests
     [InlineData(true)]
     public async Task C06_Cekilme_SonDersSayimi_DraftVeBaskaDonemKayitiSaymaz_LastCourseIleReddedilir(bool baskaDonem)
     {
-        using var o = new DersKaydiOrtami();
+        using var o = Ortam();
         var a = o.AktifKayitEkle(o.DersEkle("AAA101"));
         var diger = baskaDonem
             ? o.KayitEkle(o.DersEkle("BBB101"), RegistrationStatus.Active, o.GecmisDonem)
@@ -167,7 +179,7 @@ public class C06_DerstenCekilmeTests
     [Fact]
     public async Task C06_Cekilme_DahaOnceCekilinmisDers_DuplicateWithdrawalIleReddedilir()
     {
-        using var o = new DersKaydiOrtami();
+        using var o = Ortam();
         var (a, _) = IkiDers(o);
         a.CourseWithdrawalCount = 1;
         o.Db.SaveChanges();
@@ -186,7 +198,7 @@ public class C06_DerstenCekilmeTests
     [InlineData(1)]
     public async Task C06_Cekilme_IlkIkiYariyil_FirstTwoSemestersIleReddedilir(int tamamlanan)
     {
-        using var o = new DersKaydiOrtami(tamamlananDonem: tamamlanan);
+        using var o = Ortam(tamamlanan);
         var (a, _) = IkiDers(o);
 
         Assert.Equal("FirstTwoSemesters", TekRet(await Cek(o, a)));
@@ -204,7 +216,7 @@ public class C06_DerstenCekilmeTests
     [InlineData(DegreeLevel.Doctorate, true)]
     public async Task C06_Cekilme_IlkYariyilKurali_YalnizOnlisansVeLisansa(DegreeLevel duzey, bool kabul)
     {
-        using var o = new DersKaydiOrtami(tamamlananDonem: 1);
+        using var o = Ortam(1);
         o.ProgramDuzeyiAyarla(duzey);
         var (a, _) = IkiDers(o);
 
@@ -226,7 +238,7 @@ public class C06_DerstenCekilmeTests
     [InlineData(GradeCode.U)]
     public async Task C06_Cekilme_AlttanDers_MandatoryRetakeIleReddedilir(GradeCode eskiNot)
     {
-        using var o = new DersKaydiOrtami();
+        using var o = Ortam();
         var ders = o.DersEkle("AAA101");
         o.NotEkle(ders, eskiNot, o.OncekiDonem);
         var a = o.AktifKayitEkle(ders);
@@ -245,7 +257,7 @@ public class C06_DerstenCekilmeTests
     [InlineData(GradeCode.I)]
     public async Task C06_Cekilme_AlttanDers_SonrakiWVeyaIGecmisSayilmaz_MandatoryRetakeSurer(GradeCode sonrakiNot)
     {
-        using var o = new DersKaydiOrtami();
+        using var o = Ortam();
         var ders = o.DersEkle("AAA101");
         o.NotEkle(ders, GradeCode.FF, o.OncekiDonem);
         var sonraki = o.NotEkle(ders, sonrakiNot, o.GecmisDonem);
@@ -270,7 +282,7 @@ public class C06_DerstenCekilmeTests
     [InlineData(DegreeLevel.Master, 6, false)]
     public async Task C06_Cekilme_AzamiSayi_MaxWithdrawalsSiniri(DegreeLevel duzey, int onceki, bool kabul)
     {
-        using var o = new DersKaydiOrtami();
+        using var o = Ortam();
         o.ProgramDuzeyiAyarla(duzey);
         o.Ogrenci.WithdrawalCount = onceki;
         o.Db.SaveChanges();
@@ -291,7 +303,7 @@ public class C06_DerstenCekilmeTests
     [Fact]
     public async Task C06_Cekilme_IkiKosulBirlikteBozuksa_IkiHataBirlikteDoner()
     {
-        using var o = new DersKaydiOrtami();
+        using var o = Ortam();
         var a = o.AktifKayitEkle(o.DersEkle("AAA101"));
         a.CourseWithdrawalCount = 1;
         o.Db.SaveChanges();
@@ -313,10 +325,10 @@ public class C06_DerstenCekilmeTests
     // boşsa tarih geçerlidir. Karşı örnek: istisna boşken sonuç tarihe göre tersine döner.
     [Theory]
     [InlineData(true, "2025-05-11T12:00:00", true)]
-    [InlineData(false, "2025-03-10T12:00:00", false)]
+    [InlineData(false, "2025-04-10T12:00:00", false)]
     public async Task C06_Cekilme_PencereIstisnasi_TarihinYerineGecer(bool istisna, string an, bool kabul)
     {
-        using var o = new DersKaydiOrtami();
+        using var o = Ortam();
         var (a, _) = IkiDers(o);
         o.Saat.UtcNow = DateTime.Parse(an, CultureInfo.InvariantCulture, DateTimeStyles.AdjustToUniversal | DateTimeStyles.AssumeUniversal);
 
@@ -338,7 +350,7 @@ public class C06_DerstenCekilmeTests
     [Fact]
     public async Task C06_Cekilme_PencereIstisnasiAcikAmaDonemPasif_TermStatusIleReddedilir()
     {
-        using var o = new DersKaydiOrtami();
+        using var o = Ortam();
         var (a, _) = IkiDers(o);
         o.EtkinDonem.AcademicCalendar!.WithdrawalOverride = true;
         o.EtkinDonem.IsActivated = false;
