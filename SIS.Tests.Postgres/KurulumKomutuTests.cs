@@ -106,7 +106,7 @@ public sealed class KurulumKomutuTests(PostgresFixture fixture) : IAsyncLifetime
             NullLogger.Instance));
 
         await using var db = fixture.YeniContext();
-        Assert.True(await db.AcademicTerms.AnyAsync()); // örnek veri yazıldı
+        Assert.True(await db.Students.AnyAsync()); // örnek veri yazıldı
         Assert.Equal("Etc/UTC", await db.SystemConfigs.Where(c => c.Key == "Institution.TimeZone").Select(c => c.Value).SingleAsync());
     }
 
