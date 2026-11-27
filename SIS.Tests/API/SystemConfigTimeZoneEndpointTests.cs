@@ -34,6 +34,7 @@ public sealed class SystemConfigTimeZoneEndpointTests
     [InlineData("Mars/Olympus")]
     [InlineData("Turkey Standard Time")]
     [InlineData(" ")]
+    [InlineData("Europe//Istanbul")]
     public async Task GecersizAd_400_DegerDegismez(string deger)
     {
         Assert.IsType<BadRequestObjectResult>(await Put(deger));
@@ -51,16 +52,18 @@ public sealed class SystemConfigTimeZoneEndpointTests
         Assert.Equal("Europe/Berlin", Kayitli());
     }
 
-    // Büyük-küçük harf ve baştaki/sondaki boşluk normal biçime çevrilir.
+    // Büyük-küçük harf ve baştaki/sondaki boşluk normal biçime çevrilir. antarctica/troll'ü başka hiçbir test
+    // adıyla yüklemez; böylece sonuç .NET'in süreç içi saat dilimi önbelleğine bağlı kalmaz.
     [Theory]
-    [InlineData("europe/istanbul")]
-    [InlineData("  Europe/Istanbul  ")]
-    public async Task AdNormalBicimdeSaklanir(string deger)
+    [InlineData("europe/istanbul", "Europe/Istanbul")]
+    [InlineData("  Europe/Istanbul  ", "Europe/Istanbul")]
+    [InlineData("antarctica/troll", "Antarctica/Troll")]
+    public async Task AdNormalBicimdeSaklanir(string deger, string beklenen)
     {
         Assert.IsType<OkObjectResult>(await Put(deger));
-        Assert.Equal("Europe/Istanbul", Kayitli());
+        Assert.Equal(beklenen, Kayitli());
         Assert.IsType<OkObjectResult>(await Ice("Etc/UTC"));
         Assert.IsType<OkObjectResult>(await Ice(deger));
-        Assert.Equal("Europe/Istanbul", Kayitli());
+        Assert.Equal(beklenen, Kayitli());
     }
 }

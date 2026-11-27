@@ -1,5 +1,4 @@
 using Microsoft.EntityFrameworkCore;
-using SIS.Application.Common.Time;
 using SIS.Domain.Entities;
 using SIS.Domain.Enums;
 using System.Globalization;

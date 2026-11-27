@@ -24,6 +24,28 @@ public class InstitutionTimeZoneValidatorTests
         Assert.Contains(neden, hata);
     }
 
+    // Sunucunun dilim listesinde tam adıyla bulunmayan ad, dosya yoluyla çözülebilse de (takma ad, çift eğik çizgi) reddedilir.
+    [Theory]
+    [InlineData("Europe//Istanbul")]
+    [InlineData("Asia/Istanbul")]
+    [InlineData("Turkey")]
+    public void ListedeOlmayanAd_Reddedilir(string ad)
+    {
+        Assert.False(InstitutionTimeZoneValidator.TryResolve(ad, out _, out var hata));
+        Assert.Contains("bulunamadı", hata);
+    }
+
+    // Ad harfe duyarsız eşleşir ve listedeki biçimiyle döner. Troll'ü başka hiçbir test adıyla yüklemez:
+    // eşleşme .NET'in süreç içi önbelleğinden değil, listeden gelmelidir.
+    [Theory]
+    [InlineData("europe/istanbul", "Europe/Istanbul")]
+    [InlineData("antarctica/troll", "Antarctica/Troll")]
+    public void Ad_ListedekiBicimiyleDoner(string ad, string beklenen)
+    {
+        Assert.True(InstitutionTimeZoneValidator.TryResolve(ad, out var tz, out _));
+        Assert.Equal(beklenen, tz.Id);
+    }
+
     // Windows adı her ortamda reddedilir; nedeni (bulunamadı ya da IANA değil) platformun saat dilimi verisine bağlıdır.
     [Fact]
     public void WindowsAdi_Reddedilir() =>
@@ -49,6 +71,8 @@ public class InstitutionTimeZoneValidatorTests
     [InlineData("Factory")]
     [InlineData("right/Europe/Istanbul")]
     [InlineData("posix/Europe/Istanbul")]
+    [InlineData("LOCALTIME")]
+    [InlineData("Right/Europe/Istanbul")]
     public void SunucuyaBagliAd_Reddedilir(string ad)
     {
         Assert.False(InstitutionTimeZoneValidator.TryResolve(ad, out _, out var hata));

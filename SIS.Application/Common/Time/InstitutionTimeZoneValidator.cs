@@ -9,7 +9,8 @@ public static class InstitutionTimeZoneValidator
     public const string ConfigKey = "Institution.TimeZone";
     public const string DefaultId = "Etc/UTC";
 
-    // UTC sunucunun saat dilimi verisine (tzdata) bakılmadan çözülür; varsayılan kurulum tzdata gerektirmez.
+    // Doğrulayıcı UTC'yi saat dilimi verisine (tzdata) bakmadan çözer. Uygulamanın başka yerleri
+    // (ör. PDF üreticileri, kayıt temizliği) Europe/Istanbul'u hâlâ tzdata'dan arar.
     private static readonly TimeZoneInfo EtcUtc = TimeZoneInfo.CreateCustomTimeZone(DefaultId, TimeSpan.Zero, DefaultId, DefaultId);
 
     // Sunucunun kendi dilimine ya da tzdata iç dosyalarına işaret eden adlar açık bir seçim değildir.
@@ -32,9 +33,11 @@ public static class InstitutionTimeZoneValidator
         ServerBoundNames.Any(name => string.Equals(id, name, StringComparison.OrdinalIgnoreCase))
         || ServerBoundPrefixes.Any(prefix => id.StartsWith(prefix, StringComparison.OrdinalIgnoreCase));
 
-    // Dosya adı büyük-küçük harfe duyarlı sistemlerde de ad, sunucunun dilim listesinden normal biçimine çevrilir.
+    // Ad yalnız sunucunun dilim listesinde (harfe duyarsız) tam eşleşmeyle bulunur ve listedeki biçimiyle döner.
+    // Dosya yoluyla arama yapılmaz: takma adlar (Asia/Istanbul, Turkey) ve Europe//Istanbul gibi yollar reddedilir.
+    // Windows'un listesi Windows adlarından oluşur; orada IANA adı eskisi gibi çevrilerek aranır.
     private static TimeZoneInfo? Find(string id) =>
         string.Equals(id, "UTC", StringComparison.OrdinalIgnoreCase) || string.Equals(id, DefaultId, StringComparison.OrdinalIgnoreCase) ? EtcUtc
-        : TimeZoneInfo.TryFindSystemTimeZoneById(id, out var exact) ? exact
-        : TimeZoneInfo.GetSystemTimeZones().FirstOrDefault(zone => string.Equals(zone.Id, id, StringComparison.OrdinalIgnoreCase));
+        : TimeZoneInfo.GetSystemTimeZones().FirstOrDefault(zone => string.Equals(zone.Id, id, StringComparison.OrdinalIgnoreCase))
+            ?? (OperatingSystem.IsWindows() && TimeZoneInfo.TryFindSystemTimeZoneById(id, out var converted) ? converted : null);
 }
