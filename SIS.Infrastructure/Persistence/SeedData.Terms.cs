@@ -11,7 +11,8 @@ public static partial class SeedData
     // dönemleri ile bugünü içeren (ya da en son başlamış) dönem. Dönem (yıl, tür) ile tanınır; var
     // olanlara dokunulmaz (ör. migration'ın eklediği yaz dönemi). Her yeni döneme bir akademik takvim
     // yazılır.
-    internal static async Task SeedTermsAsync(AppDbContext context, DateTime bugun)
+    // Örnek veri dönemleri: son dört akademik yılın güz ve bahar dönemleri, gelecekte başlayanlar hariç.
+    internal static List<(int Yil, TermType Tur, DateTime Bas, DateTime Bit)> DemoDonemleri(DateTime bugun)
     {
         var baslangicYili = bugun.Month >= 8 ? bugun.Year : bugun.Year - 1;
         var donemler = new List<(int Yil, TermType Tur, DateTime Bas, DateTime Bit)>();
@@ -20,9 +21,20 @@ public static partial class SeedData
             donemler.Add((yil, TermType.Fall, Utc(yil, 9, 15), Utc(yil + 1, 1, 10)));
             donemler.Add((yil, TermType.Spring, Utc(yil + 1, 2, 15), Utc(yil + 1, 6, 10)));
         }
-        // Gelecekte başlayan dönem yazılmaz.
-        donemler = donemler.Where(d => d.Bas <= bugun.Date).ToList();
-        var guncel = donemler.OrderBy(d => d.Bas).Last();
+        return donemler.Where(d => d.Bas <= bugun.Date).OrderBy(d => d.Bas).ToList();
+    }
+
+    // Bugünü içeren ya da en son başlamış örnek dönem (dönem aralarında bitmiş dönem).
+    public static (int Yil, TermType Tur) GuncelDemoDonemi(DateTime bugun)
+    {
+        var son = DemoDonemleri(bugun).Last();
+        return (son.Yil, son.Tur);
+    }
+
+    internal static async Task SeedTermsAsync(AppDbContext context, DateTime bugun)
+    {
+        var donemler = DemoDonemleri(bugun);
+        var guncel = donemler.Last();
 
         var varOlan = (await context.AcademicTerms.Select(t => new { t.Year, t.TermType }).ToListAsync())
             .Select(t => (t.Year, t.TermType)).ToHashSet();
@@ -58,10 +70,10 @@ public static partial class SeedData
         }
         await context.SaveChangesAsync();
 
-        // Dönemler bu çağrıda kurulduysa (taze örnek veri) tek etkin dönem bugünkü dönemdir; migration'ın
-        // eklediği yaz dönemi gibi önceden etkin görünen dönem kapatılır. Örnek veri yeniden çalıştırılırsa
-        // yöneticinin seçtiği etkin döneme dokunulmaz.
-        if (yeniler.Count > 0)
+        // Taze örnek veride (bu dönemlerin hiçbiri yoktu) tek etkin dönem bugünkü dönemdir; migration'ın
+        // eklediği yaz dönemi gibi önceden etkin görünen dönem kapatılır. Örnek veri sonradan yeniden
+        // çalışırsa (yeni bir dönem başlamış olsa bile) yöneticinin seçtiği etkin döneme dokunulmaz.
+        if (yeniler.Count == donemler.Count)
         {
             foreach (var donem in await context.AcademicTerms.Where(t => t.IsActivated).ToListAsync())
                 donem.IsActivated = false;

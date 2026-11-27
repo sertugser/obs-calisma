@@ -26,7 +26,8 @@ public static partial class SeedData
         var curricula = context.Curricula.Include(c => c.Program).ToList();
 
         var now = bugun;
-        var pastTerms = terms.Where(t => !t.IsCancelled && !(t.TermStart <= now && t.TermEnd >= now))
+        // Geçmiş dönem: bitmiş ve etkin olmayan dönem (dönem aralarında etkin dönem de bitmiş görünür).
+        var pastTerms = terms.Where(t => !t.IsCancelled && t.TermEnd < now && !t.IsActivated)
             .OrderBy(t => t.Year).ThenBy(t => t.TermType).ToList();
 
         var rng = new Random(42);

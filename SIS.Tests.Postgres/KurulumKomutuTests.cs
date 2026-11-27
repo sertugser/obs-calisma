@@ -8,6 +8,7 @@ using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using SIS.Domain.Enums;
 using Microsoft.Extensions.Logging.Abstractions;
+using SIS.Infrastructure.Persistence;
 using SIS.Infrastructure.Persistence.Kurulum;
 
 namespace SIS.Tests.Postgres;
@@ -192,6 +193,16 @@ public sealed class KurulumKomutuTests(PostgresFixture fixture) : IAsyncLifetime
         Assert.All(subeler, s => { Assert.NotNull(s.InstructorId); Assert.NotEmpty(s.SectionSchedules); });
         var hocaDilim = subeler.SelectMany(s => s.SectionSchedules.Select(ss => (s.InstructorId, ss.TimeSlotId))).ToList();
         Assert.Equal(hocaDilim.Count, hocaDilim.Distinct().Count());
+    }
+
+    [Fact]
+    public void OrnekVeriDonemSecimi_DonemArasindaVeYazinDoğru()
+    {
+        // Saf tarih mantığı: veritabanı gerekmez, bu yüzden demo seed'i koşturulmaz.
+        Assert.Equal((2025, TermType.Fall), SeedData.GuncelDemoDonemi(new DateTime(2026, 1, 20, 0, 0, 0, DateTimeKind.Utc)));
+        Assert.Equal((2025, TermType.Spring), SeedData.GuncelDemoDonemi(new DateTime(2026, 7, 20, 0, 0, 0, DateTimeKind.Utc)));
+        Assert.Equal((2025, TermType.Spring), SeedData.GuncelDemoDonemi(new DateTime(2026, 9, 1, 0, 0, 0, DateTimeKind.Utc)));
+        Assert.Equal((2026, TermType.Fall), SeedData.GuncelDemoDonemi(new DateTime(2026, 9, 15, 0, 0, 0, DateTimeKind.Utc)));
     }
 
     private static Task<int> KurAsync(SisUygulamasi uygulama, string eposta, string? parola) =>
