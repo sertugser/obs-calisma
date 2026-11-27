@@ -1,11 +1,10 @@
 using Microsoft.EntityFrameworkCore;
 using SIS.Infrastructure.Persistence;
 using SIS.Infrastructure.Persistence.Katalog;
-using SIS.Infrastructure.Persistence.Seeds;
 
 namespace SIS.Tests.InfrastructureTests;
 
-// Adım 3.3a: menü kataloğu eski MenuStructureSeed ile aynı ağacı kurar.
+// Adım 3.3a: menü kataloğunun ağacı ve tutarlılığı.
 public class MenuKataloguTests
 {
     private static readonly DateTime Simdi = new(2026, 11, 26, 12, 0, 0, DateTimeKind.Utc);
@@ -13,21 +12,20 @@ public class MenuKataloguTests
     private static AppDbContext YeniContext() =>
         new(new DbContextOptionsBuilder<AppDbContext>().UseInMemoryDatabase(Guid.NewGuid().ToString()).Options);
 
+    // Eski MenuStructureSeed ile alan alan eşdeğerlik 3.3a'da doğrulandı (İş paketi 23); eski seed
+    // Adım 3.9b'de silindiği için burada yalnız ağacın biçimi sabitleniyor.
     [Fact]
-    public async Task EskiSeedIleAyniAgaciKurar()
+    public async Task KatalogAgaciKurar_UstModulVeIzinBaglariyla()
     {
-        await using var eski = YeniContext();
-        await SistemKatalogu.EsitleAsync(eski, Simdi);
-        await MenuStructureSeed.SeedAsync(eski);
-
         await using var yeni = YeniContext();
         await SistemKatalogu.EsitleAsync(yeni, Simdi);
         await MenuKatalogu.EsitleAsync(yeni, Simdi);
 
-        Assert.Equal(await ModullerAsync(eski), await ModullerAsync(yeni));
-        Assert.Equal(await OgelerAsync(eski), await OgelerAsync(yeni));
         Assert.Equal(18, (await ModullerAsync(yeni)).Count);
-        Assert.Equal(74, (await OgelerAsync(yeni)).Count);
+        var ogeler = await OgelerAsync(yeni);
+        Assert.Equal(74, ogeler.Count);
+        Assert.All(ogeler, o => Assert.False(o.EndsWith('|'), o)); // her öğenin bir izni var
+        Assert.Equal(2, await yeni.MenuModules.CountAsync(m => m.ParentId != null));
     }
 
     [Fact]

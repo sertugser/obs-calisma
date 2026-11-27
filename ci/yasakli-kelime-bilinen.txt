@@ -29,7 +29,6 @@ SIS.Domain/Enums/TermType.cs	kurum-ankara-bilim	1
 SIS.Infrastructure/Persistence/AppDbContext.cs	rakip-proliz	1
 SIS.Infrastructure/Persistence/SeedData.SystemConfig.cs	kurum-ankara-bilim	1
 SIS.Infrastructure/Persistence/Seeds/CurriculumCourseOpeningReasonSeed.cs	rakip-proliz	2
-SIS.Infrastructure/Persistence/Seeds/MenuStructureSeed.cs	rakip-proliz	1
 SIS.Infrastructure/Persistence/Seeds/RolePermissionSeed.cs	rakip-proliz	1
 SIS.Infrastructure/Services/AcademicOperationsService.BulkOperations.cs	rakip-proliz	1
 SIS.Infrastructure/Services/AdminCourseCatalogService.cs	rakip-proliz	4
