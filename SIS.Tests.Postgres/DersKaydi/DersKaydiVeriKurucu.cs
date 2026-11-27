@@ -1,7 +1,11 @@
+using System.Data.Common;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
+using Microsoft.Extensions.Logging.Abstractions;
 using SIS.Application.Common.Time;
 using SIS.Application.CourseRegistration.DTOs;
+using SIS.Application.Notifications.DTOs;
+using SIS.Application.Notifications.Services;
 using SIS.Domain.Entities;
 using SIS.Domain.Enums;
 using SIS.Infrastructure.Persistence;
@@ -62,14 +66,50 @@ internal sealed class DersKaydiVeriKurucu(PostgresFixture fixture)
         })).Id;
     }
 
-    /// <summary>Verilen context'le gerçek doğrulama ve kayıt servisleri üzerinden tek şubelik gönderim.</summary>
-    public Task<RegistrationResponseDto> GonderAsync(AppDbContext db, int ogrenciId, int subeId) =>
+    /// <summary>Verilen context'le gerçek doğrulama ve kayıt servisleri üzerinden verilen şubelere gönderim.</summary>
+    public Task<RegistrationResponseDto> GonderAsync(AppDbContext db, int ogrenciId, params int[] subeIdleri) =>
         new CourseRegistrationService(db, new RegistrationValidationService(db, new SabitSaat()), new SabitSaat())
+            .SubmitRegistrationAsync(ogrenciId, new RegistrationSubmitDto { CourseSectionIds = [.. subeIdleri] });
+
+    /// <summary>Gönderimi gerçek bildirim servisiyle yapar; bildirim aynı context'le yazılır.</summary>
+    public Task<RegistrationResponseDto> BildirimliGonderAsync(AppDbContext db, int ogrenciId, int subeId) =>
+        new CourseRegistrationService(db, new RegistrationValidationService(db, new SabitSaat()), new SabitSaat(),
+                notifications: new NotificationService(db, new SabitSaat(), new SessizPush(), NullLogger<NotificationService>.Instance))
             .SubmitRegistrationAsync(ogrenciId, new RegistrationSubmitDto { CourseSectionIds = [subeId] });
 
-    /// <summary>Verilen kesiciyi taşıyan ayrı bir context.</summary>
-    public AppDbContext KesiciliContext(ArayaGirenKesici kesici) =>
-        new(new DbContextOptionsBuilder<AppDbContext>().UseNpgsql(fixture.BaglantiCumlesi).AddInterceptors(kesici).Options);
+    /// <summary>Öğrenciye yeni bir danışman atar; danışmanın kullanıcı kimliğini döner.</summary>
+    public async Task<int> DanismanAtaAsync(int ogrenciId)
+    {
+        var kullanici = await KaydetAsync(new ApplicationUser { UserName = "danisman" + ogrenciId, FirstName = "Deneme", LastName = "Danışman" });
+        var danisman = await KaydetAsync(new Instructor { UserId = kullanici.Id, DepartmentId = _bolumId, CreatedAt = Simdi });
+        await using var db = fixture.YeniContext();
+        await db.Students.Where(s => s.Id == ogrenciId).ExecuteUpdateAsync(u => u.SetProperty(s => s.AdvisorId, danisman.Id));
+        return kullanici.Id;
+    }
+
+    /// <summary>Kullanıcıya giden "kayıt onay bekliyor" bildirimlerinin sayısı, yeni bir context'le.</summary>
+    public async Task<int> OnayBildirimiSayisiAsync(int kullaniciId)
+    {
+        await using var db = fixture.YeniContext();
+        return await db.Notifications.CountAsync(n => n.UserId == kullaniciId && n.Type == NotificationType.RegistrationSubmittedForApproval);
+    }
+
+    /// <summary>Verilen durumda bir kayıt satırı, kendi context'iyle; şube mevcuduna dokunmaz.</summary>
+    public async Task<int> KayitEkleAsync(int ogrenciId, int subeId, RegistrationStatus durum) =>
+        (await KaydetAsync(new CourseRegistration { StudentId = ogrenciId, CourseSectionId = subeId, Status = durum, CreatedAt = Simdi })).Id;
+
+    /// <summary>Şubedeki kayıt satırları (Id, öğrenci, durum), yeni bir context'le.</summary>
+    public async Task<(int, int, RegistrationStatus)[]> KayitSatirlariAsync(int subeId)
+    {
+        await using var db = fixture.YeniContext();
+        var kayitlar = await db.CourseRegistrations.Where(r => r.CourseSectionId == subeId)
+            .OrderBy(r => r.Id).Select(r => new { r.Id, r.StudentId, r.Status }).ToListAsync();
+        return kayitlar.Select(r => (r.Id, r.StudentId, r.Status)).ToArray();
+    }
+
+    /// <summary>Verilen kesicileri taşıyan ayrı bir context.</summary>
+    public AppDbContext KesiciliContext(params IInterceptor[] kesiciler) =>
+        new(new DbContextOptionsBuilder<AppDbContext>().UseNpgsql(fixture.BaglantiCumlesi).AddInterceptors(kesiciler).Options);
 
     /// <summary>Şube mevcudu, yeni bir context'le.</summary>
     public async Task<int> MevcutAsync(int subeId)
@@ -164,17 +204,61 @@ internal sealed class DersKaydiVeriKurucu(PostgresFixture fixture)
     {
         public DateTime UtcNow => Simdi;
     }
+
+    private sealed class SessizPush : INotificationRealtimePush
+    {
+        public Task PushAsync(int userId, NotificationDto notification, CancellationToken ct = default) => Task.CompletedTask;
+    }
 }
 
-/// <summary>Bağlı context'in işlem içindeki ilk SaveChanges'inden hemen önce verilen eylemi bir kez çalıştırır.</summary>
-internal sealed class ArayaGirenKesici(Func<Task> eylem) : SaveChangesInterceptor
+/// <summary>
+/// Bağlı context'in işlem içindeki SaveChanges'lerinden hemen önce verilen eylemi çalıştırır; en çok <paramref name="enCok"/> kez
+/// (varsayılan: yalnız ilkinde).
+/// </summary>
+internal sealed class ArayaGirenKesici(Func<Task> eylem, int enCok = 1) : SaveChangesInterceptor
 {
     public int Calisma { get; private set; }
 
     public override async ValueTask<InterceptionResult<int>> SavingChangesAsync(
         DbContextEventData olay, InterceptionResult<int> sonuc, CancellationToken ct = default)
     {
-        if (Calisma == 0 && olay.Context!.Database.CurrentTransaction is not null)
+        if (Calisma < enCok && olay.Context!.Database.CurrentTransaction is not null)
+        {
+            Calisma++;
+            await eylem();
+        }
+        return sonuc;
+    }
+}
+
+/// <summary>Bağlı context'in ilk işlem onayından (commit) hemen önce verilen eylemi bir kez çalıştırır; onayları sayar.</summary>
+internal sealed class OnayOncesiKesici(Func<Task> eylem) : DbTransactionInterceptor
+{
+    public int Calisma { get; private set; }
+    public int Onay { get; private set; }
+
+    public override async ValueTask<InterceptionResult> TransactionCommittingAsync(
+        System.Data.Common.DbTransaction islem, TransactionEventData olay, InterceptionResult sonuc, CancellationToken ct = default)
+    {
+        Onay++;
+        if (Calisma == 0)
+        {
+            Calisma++;
+            await eylem();
+        }
+        return sonuc;
+    }
+}
+
+/// <summary>Bağlı context'in koşulu sağlayan ilk okuyuculu komutundan hemen önce verilen eylemi bir kez çalıştırır.</summary>
+internal sealed class KomutOncesiKesici(Func<DbCommand, bool> kosul, Func<Task> eylem) : DbCommandInterceptor
+{
+    public int Calisma { get; private set; }
+
+    public override async ValueTask<InterceptionResult<DbDataReader>> ReaderExecutingAsync(
+        DbCommand komut, CommandEventData olay, InterceptionResult<DbDataReader> sonuc, CancellationToken ct = default)
+    {
+        if (Calisma == 0 && kosul(komut))
         {
             Calisma++;
             await eylem();

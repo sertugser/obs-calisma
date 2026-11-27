@@ -10,6 +10,7 @@ using SIS.Application.Notifications.Services;
 using SIS.Domain.Entities;
 using SIS.Domain.Enums;
 using SIS.Infrastructure.Persistence;
+using SIS.Infrastructure.Services.Time;
 
 namespace SIS.Infrastructure.Services;
 
@@ -34,6 +35,7 @@ public partial class CourseRegistrationService : ICourseRegistrationService
     private readonly IEctsLimitResolver _ectsLimitResolver;
     private readonly IRegistrationGate _registrationGate;
     private readonly IAttendancePolicyResolver _attendancePolicyResolver;
+    private readonly IInstitutionTimeZoneProvider _institutionTimeZone;
     private static readonly TimeZoneInfo TurkeyTimeZone = ResolveTurkeyTimeZone();
 
     public CourseRegistrationService(
@@ -47,7 +49,8 @@ public partial class CourseRegistrationService : ICourseRegistrationService
         INotificationService? notifications = null,
         IEctsLimitResolver? ectsLimitResolver = null,
         IRegistrationGate? registrationGate = null,
-        IAttendancePolicyResolver? attendancePolicyResolver = null)
+        IAttendancePolicyResolver? attendancePolicyResolver = null,
+        IInstitutionTimeZoneProvider? institutionTimeZone = null)
     {
         _context = context;
         _validationService = validationService;
@@ -61,6 +64,7 @@ public partial class CourseRegistrationService : ICourseRegistrationService
         _ectsLimitResolver = ectsLimitResolver ?? new EctsLimitResolver(_config);
         _registrationGate = registrationGate ?? new RegistrationGate(_context);
         _attendancePolicyResolver = attendancePolicyResolver ?? new AttendancePolicyResolver(_context, _config);
+        _institutionTimeZone = institutionTimeZone ?? new InstitutionTimeZoneProvider(_config);
     }
 
     public async Task<List<StudentRegistrationDto>> GetStudentRegistrationsAsync(int studentId)

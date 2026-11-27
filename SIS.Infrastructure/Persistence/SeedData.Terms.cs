@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using SIS.Application.Common.Time;
 using SIS.Domain.Entities;
 using SIS.Domain.Enums;
 using System.Globalization;
@@ -7,7 +8,7 @@ namespace SIS.Infrastructure.Persistence;
 
 public static partial class SeedData
 {
-    private static async Task SeedTermsAndClassroomsAsync(AppDbContext context)
+    private static async Task SeedTermsAsync(AppDbContext context)
     {
         // Academic Terms
         if (!context.AcademicTerms.Any())
@@ -69,9 +70,19 @@ public static partial class SeedData
 
                 context.AcademicTerms.Add(term);
             }
+
+            // Demo verisinin ilk kurulumu: kurum saat dilimi hâlâ varsayılandaysa örnek kurumunkine çekilir.
+            // Bu blok yalnız dönem yokken çalışır; yöneticinin sonraki seçimi ezilmez.
+            var timeZoneConfig = await context.SystemConfigs.FirstOrDefaultAsync(c => c.Key == InstitutionTimeZoneValidator.ConfigKey);
+            if (timeZoneConfig?.Value == InstitutionTimeZoneValidator.DefaultId)
+                timeZoneConfig.Value = "Europe/Istanbul";
             await context.SaveChangesAsync();
         }
+    }
 
+    // Derslikler kurum verisidir (Kurum/YerelKurumVeriKaynagi).
+    internal static async Task SeedClassroomsAsync(AppDbContext context)
+    {
         // Classrooms
         if (!context.Classrooms.Any())
         {
