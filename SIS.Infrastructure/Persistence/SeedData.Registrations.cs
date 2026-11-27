@@ -123,7 +123,7 @@ public static partial class SeedData
                     context.CourseRegistrations.Add(new CourseRegistration
                     {
                         StudentId = student.Id,
-                        CourseSectionId = section.Id,
+                        CourseSection = section,
                         Status = RegistrationStatus.Completed,
                         Grade = grade,
                         IsRepeated = true,
@@ -152,7 +152,7 @@ public static partial class SeedData
                         context.CourseRegistrations.Add(new CourseRegistration
                         {
                             StudentId = student.Id,
-                            CourseSectionId = wSection.Id,
+                            CourseSection = wSection,
                             Status = RegistrationStatus.Withdrawn,
                             Grade = GradeCode.W,
                             IsRepeated = false,
@@ -192,7 +192,7 @@ public static partial class SeedData
                     context.CourseRegistrations.Add(new CourseRegistration
                     {
                         StudentId = student.Id,
-                        CourseSectionId = section.Id,
+                        CourseSection = section,
                         Status = RegistrationStatus.Completed,
                         Grade = grade,
                         IsRepeated = false,
@@ -209,14 +209,16 @@ public static partial class SeedData
                 student.Cgpa = Math.Round(totalQualityPoints / totalGpaEcts, 2);
             if (lastSemGpaEcts > 0)
                 student.Sgpa = Math.Round(lastSemQualityPoints / lastSemGpaEcts, 2);
-
-            await context.SaveChangesAsync();
         }
+
+        // Tek kayıt: öğrenci başına kaydetmek izlenen nesne sayısı büyüdükçe her kaydı yavaşlatıyordu
+        // (örnek veri dakikalar sürüyordu). Şube ile kayıt gezinme özelliğiyle bağlı, kimlik kayıtta atanır.
+        await context.SaveChangesAsync();
     }
 
     /// <summary>
     /// Find an existing section with available capacity, or create a new one.
-    /// Saves immediately when creating a new section so section.Id is available for FK references.
+    /// Yeni şube hemen kaydedilmez; kayıtlar şubeye gezinme özelliğiyle bağlanır.
     /// </summary>
     private static CourseSection FindOrCreateSection(
         AppDbContext context, int courseId, int termId,
@@ -275,7 +277,6 @@ public static partial class SeedData
             IsFinalized = false
         };
         context.CourseSections.Add(section);
-        context.SaveChanges(); // immediate save for FK resolution
 
         if (!sectionCache.ContainsKey(key))
             sectionCache[key] = [];
