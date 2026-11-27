@@ -55,11 +55,13 @@ public static partial class SeedData
     }
 
     // Örnek (demo) veri: akademik yapı, kullanıcılar, dönemler, kayıtlar. Sistem verisinden sonra çalışır.
+    // Saat dilimi ilk adımdır: sonraki bir adım yarıda kesilse de atama yapılmış olur.
     public static async Task SeedDemoAsync(
         AppDbContext context,
         UserManager<ApplicationUser> userManager,
-        bool kurumSaatDilimiYeni = false)
+        bool kurumSaatDilimiYeni)
     {
+        await SeedDemoTimeZoneAsync(context, kurumSaatDilimiYeni);
         await SeedAcademicStructureAsync(context);
         await SeedCoursesAsync(context);
         await SeedTermsAndClassroomsAsync(context);
@@ -67,7 +69,6 @@ public static partial class SeedData
         await SeedRegistrationsAsync(context);    // Geçmiş dönem transkript verileri (aktif döneme dokunmaz)
         // SeedSectionSchedulesAsync devre dışı — schedule'lar scheduling sistemi tarafından oluşturulmalı
         await SeedTimeSlotsAsync(context);
-        await SeedDemoTimeZoneAsync(context, kurumSaatDilimiYeni);
     }
 
     // SystemConfig'te "sonradan güncellendi" izi yok; atama yalnız anahtar bu kurulum koşusunda ilk kez
