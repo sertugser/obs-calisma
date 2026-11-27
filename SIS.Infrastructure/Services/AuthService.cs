@@ -2,7 +2,9 @@ using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
 using Microsoft.IdentityModel.Tokens;
 using SIS.Application.Auth;
 using SIS.Application.Auth.DTOs;
@@ -17,15 +19,21 @@ public class AuthService : IAuthService
     private readonly UserManager<ApplicationUser> _userManager;
     private readonly IConfiguration _configuration;
     private readonly ISystemConfigProvider _systemConfig;
+    private readonly AppDbContext _context;
+    private readonly ILogger<AuthService> _logger;
 
     public AuthService(
         UserManager<ApplicationUser> userManager,
         IConfiguration configuration,
-        ISystemConfigProvider systemConfig)
+        ISystemConfigProvider systemConfig,
+        AppDbContext context,
+        ILogger<AuthService> logger)
     {
         _userManager = userManager;
         _configuration = configuration;
         _systemConfig = systemConfig;
+        _context = context;
+        _logger = logger;
     }
 
     public async Task<AuthResponseDto> LoginAsync(LoginDto loginDto)
@@ -57,7 +65,7 @@ public class AuthService : IAuthService
         if (!passwordValid)
         {
             // 4. If failed: increment AccessFailedCount via userManager.AccessFailedAsync
-            await _userManager.AccessFailedAsync(user);
+            await UpdateUserWithRetryAsync(user, _userManager.AccessFailedAsync, nameof(UserManager<ApplicationUser>.AccessFailedAsync));
 
             // If lockout triggered (5 attempts, FR-07), return locked error
             if (await _userManager.IsLockedOutAsync(user))
@@ -77,9 +85,35 @@ public class AuthService : IAuthService
         }
 
         // 5. If success: reset failed count via userManager.ResetAccessFailedCountAsync
-        await _userManager.ResetAccessFailedCountAsync(user);
+        await UpdateUserWithRetryAsync(user, _userManager.ResetAccessFailedCountAsync, nameof(UserManager<ApplicationUser>.ResetAccessFailedCountAsync));
 
         return await BuildAuthResponseAsync(user);
+    }
+
+    /// <summary>Kullanıcı satırını güncelleyen Identity işleminin eşzamanlılık çakışmasındaki toplam deneme sayısı (teknik sınır, kurumsal kural değil).</summary>
+    private const int UserUpdateMaxAttempts = 3;
+
+    /// <summary>
+    /// Kullanıcı satırını güncelleyen bir Identity işlemini çalıştırır. Satır bu istek yüklediğinden beri başka bir istekle güncellendiyse
+    /// Identity istisna atmadan ConcurrencyFailure döner ve kullanıcı izleyicide değişmiş kalır (sonraki kaydetme aynı güncellemeyi yeniden
+    /// gönderip düşerdi). Bu durumda kullanıcı veritabanından yeniden yüklenir ve işlem taze değerle yeniden denenir. Denemeler tükenirse
+    /// kullanıcı yüklenmiş (değişmemiş) bırakılır ve olay uyarı olarak günlüğe yazılır. Başka sonuçlar bugünkü gibi yok sayılır.
+    /// </summary>
+    private async Task UpdateUserWithRetryAsync(ApplicationUser user, Func<ApplicationUser, Task<IdentityResult>> update, string operation)
+    {
+        for (var attempt = 1; ; attempt++)
+        {
+            var result = await update(user);
+            if (!result.Errors.Any(e => e.Code == nameof(IdentityErrorDescriber.ConcurrencyFailure)))
+                return;
+            await _context.Entry(user).ReloadAsync();
+            if (attempt == UserUpdateMaxAttempts)
+            {
+                _logger.LogWarning("Kullanıcı güncellemesi eşzamanlılık çakışması nedeniyle uygulanamadı (userId={UserId}, işlem={Operation}, deneme={Attempts})",
+                    user.Id, operation, attempt);
+                return;
+            }
+        }
     }
 
     public async Task<AuthResponseDto> RefreshTokenAsync(string token)
