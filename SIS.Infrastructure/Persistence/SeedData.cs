@@ -13,7 +13,7 @@ public static partial class SeedData
         RoleManager<IdentityRole<int>> roleManager)
     {
         await SeedSystemAsync(context, roleManager);
-        await SeedDemoAsync(context, userManager);
+        await SeedDemoAsync(context, userManager); // yerel kurum verisini de yazar
     }
 
     // Her kurulumda gereken sistem verisi. Örnek veriye bağlı değildir.
@@ -50,14 +50,15 @@ public static partial class SeedData
         await ReportSeed.SeedAsync(context);
     }
 
-    // Örnek (demo) veri: akademik yapı, kullanıcılar, dönemler, kayıtlar. Sistem verisinden sonra çalışır.
+    // Örnek (demo) veri: kullanıcılar, dönemler, kayıtlar. Sistem verisinden sonra çalışır.
     public static async Task SeedDemoAsync(
         AppDbContext context,
         UserManager<ApplicationUser> userManager)
     {
-        await SeedAcademicStructureAsync(context);
-        await SeedCoursesAsync(context);
-        await SeedTermsAndClassroomsAsync(context);
+        // Örnek veri bugün yerel kurumun akademik yapısına dayanıyor; yapı yoksa önce o yazılır
+        // (Adım 3.7'de demo üretici kendi sentetik kurumunu kuracak).
+        await new Kurum.YerelKurumVeriKaynagi().YazAsync(context);
+        await SeedTermsAsync(context);
         await SeedUsersAsync(context, userManager);
         await SeedRegistrationsAsync(context);    // Geçmiş dönem transkript verileri (aktif döneme dokunmaz)
         // SeedSectionSchedulesAsync devre dışı — schedule'lar scheduling sistemi tarafından oluşturulmalı

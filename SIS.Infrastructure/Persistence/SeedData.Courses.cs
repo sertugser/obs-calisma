@@ -5,7 +5,7 @@ namespace SIS.Infrastructure.Persistence;
 
 public static partial class SeedData
 {
-    private static async Task SeedCoursesAsync(AppDbContext context)
+    internal static async Task SeedCoursesAsync(AppDbContext context)
     {
         // Madde 10: Null DepartmentId olan dersleri Temel Bilimler Koordinatörlüğü'ne ata
         // (Ortak dersler artık sahipsiz kalmıyor — NOT NULL guard'ı öncesi tek seferlik temizlik)
