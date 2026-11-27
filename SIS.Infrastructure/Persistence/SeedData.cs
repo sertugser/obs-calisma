@@ -9,15 +9,6 @@ namespace SIS.Infrastructure.Persistence;
 
 public static partial class SeedData
 {
-    public static async Task SeedAsync(
-        AppDbContext context,
-        UserManager<ApplicationUser> userManager,
-        RoleManager<IdentityRole<int>> roleManager)
-    {
-        var saatDilimiYeni = await SeedSystemAsync(context, roleManager);
-        await SeedDemoAsync(context, userManager, saatDilimiYeni);
-    }
-
     // Her kurulumda gereken sistem verisi. Örnek veriye bağlı değildir.
     // Kurum saat dilimi anahtarı bu koşuda ilk kez yazıldıysa true döner.
     public static async Task<bool> SeedSystemAsync(
@@ -41,12 +32,12 @@ public static partial class SeedData
         await DocumentTypeSeed.SeedAsync(context);
 
         // ── RBAC Phase 1 (Sprint 1.4) ──────────────────────────
-        // Sıra önemli: Permission (katalog, yukarıda) → MenuStructure (perm lookup gerekli) → RolePermission (perm + rol lookup)
-        await MenuStructureSeed.SeedAsync(context);
-        await RolePermissionSeed.SeedAsync(context, roleManager);
+        // Sıra önemli: Permission (katalog, yukarıda) → MenuStructure (perm lookup gerekli) → rol-izin kataloğu (perm + rol lookup)
+        await Katalog.MenuKatalogu.EsitleAsync(context, DateTime.UtcNow);
+        await Katalog.RolIzinKatalogu.EsitleAsync(context, DateTime.UtcNow);
 
         // ── RBAC Phase 2 (Permission Bundles) ───────────────────
-        // MenuStructureSeed sonrası: bundle'lar menu modüllerinden derive ediliyor
+        // Menü kataloğundan sonra: bundle'lar menü modüllerinden türetiliyor
         await PermissionBundleSeed.SeedAsync(context);
 
         // ── Rapor Motoru (Faz 1): handler'ı olan raporları idempotent ekle ──
@@ -54,21 +45,25 @@ public static partial class SeedData
         return saatDilimiYeni;
     }
 
-    // Örnek (demo) veri: akademik yapı, kullanıcılar, dönemler, kayıtlar. Sistem verisinden sonra çalışır.
+    // Örnek (demo) veri: kullanıcılar, dönemler, kayıtlar. Sistem verisinden sonra çalışır.
+    // bugun: dönemlerin ve not geçmişinin göre kurulduğu gün (verilmezse şimdiki UTC zamanı).
     // Saat dilimi ilk adımdır: sonraki bir adım yarıda kesilse de atama yapılmış olur.
     public static async Task SeedDemoAsync(
         AppDbContext context,
         UserManager<ApplicationUser> userManager,
-        bool kurumSaatDilimiYeni)
+        bool kurumSaatDilimiYeni,
+        DateTime? bugun = null)
     {
         await SeedDemoTimeZoneAsync(context, kurumSaatDilimiYeni);
-        await SeedAcademicStructureAsync(context);
-        await SeedCoursesAsync(context);
-        await SeedTermsAndClassroomsAsync(context);
+        var gun = DateTime.SpecifyKind((bugun ?? DateTime.UtcNow).Date, DateTimeKind.Utc);
+        // Örnek veri bugün yerel kurumun akademik yapısına dayanıyor; yapı yoksa önce o yazılır
+        // (Adım 3.7'de demo üretici kendi sentetik kurumunu kuracak).
+        await new Kurum.YerelKurumVeriKaynagi().YazAsync(context);
+        await SeedTermsAsync(context, gun);
         await SeedUsersAsync(context, userManager);
-        await SeedRegistrationsAsync(context);    // Geçmiş dönem transkript verileri (aktif döneme dokunmaz)
-        // SeedSectionSchedulesAsync devre dışı — schedule'lar scheduling sistemi tarafından oluşturulmalı
+        await SeedRegistrationsAsync(context, gun);    // Geçmiş dönem transkript verileri (aktif döneme dokunmaz)
         await SeedTimeSlotsAsync(context);
+        await SeedActiveTermSectionsAsync(context, gun); // etkin dönem şubeleri, hocalar ve program
     }
 
     // SystemConfig'te "sonradan güncellendi" izi yok; atama yalnız anahtar bu kurulum koşusunda ilk kez

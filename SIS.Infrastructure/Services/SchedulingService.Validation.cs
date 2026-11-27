@@ -158,7 +158,19 @@ public partial class SchedulingService
         return result;
     }
 
-    public async Task<ScheduleValidationResultDto> ValidateAsync(ScheduleValidationRequestDto request, CancellationToken cancellationToken = default)
+    public Task<ScheduleValidationResultDto> ValidateAsync(ScheduleValidationRequestDto request, CancellationToken cancellationToken = default)
+        => ValidateCandidateAsync(request, partner: null, cancellationToken);
+
+    public async Task<(ScheduleValidationResultDto First, ScheduleValidationResultDto Second)> ValidateSwapAsync(
+        ScheduleValidationRequestDto first, ScheduleValidationRequestDto second, CancellationToken cancellationToken = default)
+        => (await ValidateCandidateAsync(first, second, cancellationToken), await ValidateCandidateAsync(second, first, cancellationToken));
+
+    /// <summary>
+    /// Aday şubeyi dönemin anlık görüntüsüne karşı denetler. <paramref name="partner"/> verilirse (takas) ortak şube anlık görüntüde
+    /// veritabanındaki konumuyla değil, isteğin tarif ettiği son konumuyla yer alır; kimliği ve diğer bilgileri değişmez.
+    /// </summary>
+    private async Task<ScheduleValidationResultDto> ValidateCandidateAsync(
+        ScheduleValidationRequestDto request, ScheduleValidationRequestDto? partner, CancellationToken cancellationToken)
     {
         var result = new ScheduleValidationResultDto { IsValid = true };
 
@@ -193,8 +205,25 @@ public partial class SchedulingService
         // H4 alt-toggle'ları H4.Parameters JSON'undan oku (2026-05-19 dual-channel temizliği).
         // fullCfg aşağıda BuildConstraintConfig ile kurulduktan sonra state ile zenginleştirilir.
 
+        Dictionary<int, RuntimeCandidate>? replacements = null;
+        if (partner != null)
+        {
+            var partnerSection = await _context.CourseSections
+                .AsNoTracking()
+                .Include(cs => cs.Course)
+                .Include(cs => cs.Instructor)
+                .Include(cs => cs.Classroom)
+                .FirstOrDefaultAsync(cs => cs.Id == partner.SectionId, cancellationToken);
+            if (partnerSection != null)
+            {
+                var (partnerCandidate, _) = await BuildCandidateRuntimeAsync(
+                    partnerSection, partner.InstructorId, partner.ClassroomId, partner.ScheduleSlots, cancellationToken);
+                replacements = new Dictionary<int, RuntimeCandidate> { [partnerSection.Id] = partnerCandidate };
+            }
+        }
+
         var runtimeSnapshot = await BuildRuntimeSnapshotAsync(
-            section.TermId, section.Id, null, cancellationToken);
+            section.TermId, section.Id, null, cancellationToken, replacements);
 
         result.Notes.Add($"Degerlendirilen donem: {runtimeSnapshot.TermName}");
         result.Notes.AddRange(candidateNotes);

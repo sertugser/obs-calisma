@@ -1713,6 +1713,8 @@ builder.Entity<GradingCriteria>(e =>
              .HasForeignKey(mi => mi.ModuleId)
              .OnDelete(DeleteBehavior.Cascade);
             e.HasIndex(mi => mi.Route);
+            // Katalog menü öğesini slug'la eşler (Adım 3.3a).
+            e.HasIndex(mi => mi.Slug).IsUnique();
             e.HasIndex(mi => new { mi.ModuleId, mi.Route }).IsUnique();
             e.HasIndex(mi => new { mi.ModuleId, mi.SortOrder });
         });

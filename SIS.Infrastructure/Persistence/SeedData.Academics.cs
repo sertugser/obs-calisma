@@ -6,7 +6,7 @@ namespace SIS.Infrastructure.Persistence;
 
 public static partial class SeedData
 {
-    private static async Task SeedAcademicStructureAsync(AppDbContext context)
+    internal static async Task SeedAcademicStructureAsync(AppDbContext context)
     {
         // Faculty
         if (!context.Faculties.Any())

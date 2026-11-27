@@ -26,7 +26,8 @@ public partial class SchedulingService
         int termId,
         int? excludedSectionId,
         int? departmentId,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        IReadOnlyDictionary<int, RuntimeCandidate>? replacementCandidates = null)
     {
         var sections = await LoadActiveSectionsAsync(termId, excludedSectionId, departmentId, cancellationToken);
         var weeklyHoursPolicy = await InstructorWeeklyHoursPolicy.LoadAsync(_systemConfig, cancellationToken);
@@ -56,6 +57,9 @@ public partial class SchedulingService
         var slotAllowedModes = await LoadSlotAllowedModesAsync(termId, cancellationToken);
 
         var candidates = ProjectRuntimeCandidates(sections, instructorNameMap, courseMetadata);
+        // Takas doğrulaması: ortak şube veritabanındaki konumu yerine takas sonrası adayıyla yer alır (SectionId aynı).
+        if (replacementCandidates != null)
+            candidates = candidates.Select(c => replacementCandidates.GetValueOrDefault(c.SectionId, c)).ToList();
 
         var rawConfig = await LoadSystemConfigAsync(cancellationToken);
         var fullCfg = SchedulingConstraintConfig.FromSystemConfig(rawConfig);

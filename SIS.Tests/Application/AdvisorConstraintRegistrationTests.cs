@@ -99,6 +99,32 @@ public class AdvisorConstraintRegistrationTests : IDisposable
             .Status.Should().Be(RegistrationStatus.PendingAdvisorApproval);
     }
 
+    // D25: aynı şubede gönderilmiş kayıt varken yeniden gönderim AlreadySubmitted ile reddedilir; kendi taslağı (yukarıdaki test) kabul edilir.
+    [Theory]
+    [InlineData(RegistrationStatus.PendingAdvisorApproval)]
+    [InlineData(RegistrationStatus.Active)]
+    public async Task SubmitRegistration_WhenSameSectionAlreadySubmitted_RejectsWithAlreadySubmitted(RegistrationStatus status)
+    {
+        var course = AddCourse(103, "CENG204", "Networks");
+        var section = AddSection(1003, course.Id);
+        _context.CourseRegistrations.Add(new CourseRegistration
+        {
+            StudentId = StudentId, CourseSectionId = section.Id, Status = status, CreatedAt = DateTime.UtcNow
+        });
+        _context.SaveChanges();
+
+        var result = await _service.SubmitRegistrationAsync(StudentId, new RegistrationSubmitDto
+        {
+            CourseSectionIds = [section.Id]
+        });
+
+        Assert.False(result.Success);
+        var error = Assert.Single(result.ValidationResult!.Errors);
+        Assert.Equal("AlreadySubmitted", error.Rule);
+        Assert.Equal(section.Id, error.CourseSectionId);
+        Assert.Equal(status, Assert.Single(_context.CourseRegistrations, r => r.CourseSectionId == section.Id).Status);
+    }
+
     [Fact]
     public async Task AdvisorAdd_ThenApprove_ActivatesRegistration()
     {

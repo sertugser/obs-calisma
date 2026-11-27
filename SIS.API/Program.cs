@@ -353,10 +353,18 @@ var app = builder.Build();
 
 if (kurulumModu)
 {
-    Environment.ExitCode = await SIS.Infrastructure.Persistence.Kurulum.KurulumCalistirici.CalistirAsync(
-        app.Services,
-        SIS.Infrastructure.Persistence.Kurulum.KurulumSecenekleri.Oku(args, Environment.GetEnvironmentVariable),
-        app.Logger);
+    SIS.Infrastructure.Persistence.Kurulum.KurulumSecenekleri? secenekler = null;
+    try
+    {
+        secenekler = SIS.Infrastructure.Persistence.Kurulum.KurulumSecenekleri.Oku(args, Environment.GetEnvironmentVariable);
+    }
+    catch (ArgumentException ex)
+    {
+        app.Logger.LogError("Kurulum başlamadı: {Ileti}", ex.Message);
+        Environment.ExitCode = 1;
+    }
+    if (secenekler is not null)
+        Environment.ExitCode = await SIS.Infrastructure.Persistence.Kurulum.KurulumCalistirici.CalistirAsync(app.Services, secenekler, app.Logger);
     await app.DisposeAsync(); // konsol günlükçüsü kuyruktaki iletileri çıkmadan önce yazsın
     return;
 }
@@ -393,19 +401,6 @@ app.MapControllers();
 app.MapHub<SIS.API.Hubs.ScheduleProgressHub>("/hubs/schedule-progress");
 app.MapHub<SIS.API.Hubs.NotificationHub>("/hubs/notifications");
 
-// Seed database
-if (app.Environment.IsDevelopment())
-{
-    using var scope = app.Services.CreateScope();
-    var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-    var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
-    var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole<int>>>();
-    await SeedData.SeedAsync(context, userManager, roleManager);
-
-    // Auto-schedule algoritma test verisi — Mühendislik fakültesinin gerçek dönem verisi
-    // (Güz 2024-25 + Bahar 2025-26, 162 section, hoca atanmamış). Idempotent — varsa skip.
-    // Memory: project_autoschedule_test_data.md, project_autoschedule_test_disabled_constraints.md
-    await SeedData.SeedAutoScheduleTestDataAsync(context);
-}
+// Açılış hiçbir ortamda veri yazmaz; veri `setup` komutuyla gelir (Adım 3.8).
 
 app.Run();

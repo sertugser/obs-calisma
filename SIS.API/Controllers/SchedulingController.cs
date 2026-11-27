@@ -259,39 +259,13 @@ public class SchedulingController : ControllerBase
             section2.ClassroomId = origClassroomId1;
         }
 
-        // Build validation slots from SectionSchedule (swapped if needed)
-        var slotsSource1 = request.SwapSlots ? swapSchedules2 : swapSchedules1;
-        var slotsSource2 = request.SwapSlots ? swapSchedules1 : swapSchedules2;
-        var slots1 = slotsSource1.Select(ss => new ScheduleSlotDto
-        {
-            Day = (int)ss.TimeSlot.DayOfWeek,
-            StartTime = ss.TimeSlot.StartTime,
-            EndTime = ss.TimeSlot.EndTime,
-            ClassroomId = ss.ClassroomId
-        }).ToList();
-        var slots2 = slotsSource2.Select(ss => new ScheduleSlotDto
-        {
-            Day = (int)ss.TimeSlot.DayOfWeek,
-            StartTime = ss.TimeSlot.StartTime,
-            EndTime = ss.TimeSlot.EndTime,
-            ClassroomId = ss.ClassroomId
-        }).ToList();
+        // Takasın son durumu tek kaynaktan: hem doğrulama hem yazım bu listelerden beslenir.
+        var final1 = BuildSwapFinalState(swapSchedules1, swapSchedules2, request.SwapSlots, request.SwapClassrooms);
+        var final2 = BuildSwapFinalState(swapSchedules2, swapSchedules1, request.SwapSlots, request.SwapClassrooms);
 
-        var validation1 = await _schedulingService.ValidateAsync(new ScheduleValidationRequestDto
-        {
-            SectionId = section1.Id,
-            InstructorId = section1.InstructorId,
-            ClassroomId = section1.ClassroomId,
-            ScheduleSlots = slots1
-        }, cancellationToken);
-
-        var validation2 = await _schedulingService.ValidateAsync(new ScheduleValidationRequestDto
-        {
-            SectionId = section2.Id,
-            InstructorId = section2.InstructorId,
-            ClassroomId = section2.ClassroomId,
-            ScheduleSlots = slots2
-        }, cancellationToken);
+        // Her şube, ortağı takas sonrası konumundayken denetlenir.
+        var (validation1, validation2) = await _schedulingService.ValidateSwapAsync(
+            BuildSwapValidationRequest(section1, final1), BuildSwapValidationRequest(section2, final2), cancellationToken);
 
         // Check for hard conflicts
         if (!validation1.IsValid || !validation2.IsValid)
@@ -312,7 +286,8 @@ public class SchedulingController : ControllerBase
         }
 
         // Update SectionSchedule records for both sections
-        await SwapSectionScheduleRecordsAsync(section1, section2, request.SwapSlots, request.SwapClassrooms, cancellationToken);
+        ReplaceSectionScheduleRecords(section1, swapSchedules1, final1);
+        ReplaceSectionScheduleRecords(section2, swapSchedules2, final2);
 
         await _context.SaveChangesAsync(cancellationToken);
 
@@ -590,50 +565,49 @@ public class SchedulingController : ControllerBase
         );
     }
 
-    private async Task SwapSectionScheduleRecordsAsync(
-        Domain.Entities.CourseSection section1,
-        Domain.Entities.CourseSection section2,
-        bool swapSlots,
-        bool swapClassrooms,
-        CancellationToken ct)
+    /// <summary>
+    /// Bir şubenin takas sonrası program satırları (zaman dilimi, derslik): zaman dilimi kaynağı <paramref name="swapSlots"/> ise
+    /// ortağın, değilse kendi satırları; derslik kaynağı <paramref name="swapClassrooms"/> ise ortağın, değilse kendi satırları
+    /// (aynı sıradaki satır). Yalnız zaman dilimi takası dersliklere dokunmaz. Tek boyutlu takasta blok sayıları eşittir (yukarıda
+    /// denetlenir); tam takasta iki kaynak aynı listedir.
+    /// </summary>
+    private static List<(TimeSlot TimeSlot, int? ClassroomId)> BuildSwapFinalState(
+        List<SectionSchedule> own, List<SectionSchedule> partner, bool swapSlots, bool swapClassrooms)
     {
-        var records1 = await _context.SectionSchedules
-            .Where(ss => ss.CourseSectionId == section1.Id)
-            .ToListAsync(ct);
-        var records2 = await _context.SectionSchedules
-            .Where(ss => ss.CourseSectionId == section2.Id)
-            .ToListAsync(ct);
+        var slotSource = swapSlots ? partner : own;
+        var classroomSource = swapClassrooms ? partner : own;
+        return slotSource
+            .Select((ss, i) => (ss.TimeSlot, i < classroomSource.Count ? classroomSource[i].ClassroomId : ss.ClassroomId))
+            .ToList();
+    }
 
-        // Capture original data before removal
-        var data1 = records1.Select(r => new { r.TimeSlotId, r.ClassroomId }).ToList();
-        var data2 = records2.Select(r => new { r.TimeSlotId, r.ClassroomId }).ToList();
-
-        _context.SectionSchedules.RemoveRange(records1);
-        _context.SectionSchedules.RemoveRange(records2);
-
-        // Rebuild with swapped values
-        var slots1 = swapSlots ? data2 : data1;
-        var classrooms1 = swapClassrooms ? data2 : data1;
-        var slots2 = swapSlots ? data1 : data2;
-        var classrooms2 = swapClassrooms ? data1 : data2;
-
-        for (int i = 0; i < slots1.Count; i++)
+    private static ScheduleValidationRequestDto BuildSwapValidationRequest(
+        Domain.Entities.CourseSection section, List<(TimeSlot TimeSlot, int? ClassroomId)> finalState) => new()
+    {
+        SectionId = section.Id,
+        InstructorId = section.InstructorId,
+        ClassroomId = section.ClassroomId,
+        ScheduleSlots = finalState.Select(s => new ScheduleSlotDto
         {
-            _context.SectionSchedules.Add(new Domain.Entities.SectionSchedule
-            {
-                CourseSectionId = section1.Id,
-                TimeSlotId = slots1[i].TimeSlotId,
-                ClassroomId = swapClassrooms && i < classrooms1.Count ? classrooms1[i].ClassroomId : slots1[i].ClassroomId
-            });
-        }
+            Day = (int)s.TimeSlot.DayOfWeek,
+            StartTime = s.TimeSlot.StartTime,
+            EndTime = s.TimeSlot.EndTime,
+            ClassroomId = s.ClassroomId
+        }).ToList()
+    };
 
-        for (int i = 0; i < slots2.Count; i++)
+    /// <summary>Şubenin program satırlarını doğrulanan son durumla değiştirir (kaydetme çağıranda).</summary>
+    private void ReplaceSectionScheduleRecords(
+        Domain.Entities.CourseSection section, List<SectionSchedule> records, List<(TimeSlot TimeSlot, int? ClassroomId)> finalState)
+    {
+        _context.SectionSchedules.RemoveRange(records);
+        foreach (var (timeSlot, classroomId) in finalState)
         {
-            _context.SectionSchedules.Add(new Domain.Entities.SectionSchedule
+            _context.SectionSchedules.Add(new SectionSchedule
             {
-                CourseSectionId = section2.Id,
-                TimeSlotId = slots2[i].TimeSlotId,
-                ClassroomId = swapClassrooms && i < classrooms2.Count ? classrooms2[i].ClassroomId : slots2[i].ClassroomId
+                CourseSectionId = section.Id,
+                TimeSlotId = timeSlot.Id,
+                ClassroomId = classroomId
             });
         }
     }
