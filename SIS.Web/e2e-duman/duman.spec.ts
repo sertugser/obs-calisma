@@ -56,8 +56,8 @@ test('öğrenci transkript sayfasını açar', async ({ page }) => {
   expect((await yanit).status()).toBe(200);
   await expect(page.getByRole('heading', { name: METIN.transkript, level: 1 })).toBeVisible();
   await expect(page.getByRole('row', { name: METIN.ogrenciNoSatiri })).toBeVisible();
-  // Aktif dönemin harf notları yayımlanmadığı için ders listesi bugün boş.
-  await expect(page.getByText(METIN.transkriptBos)).toBeVisible();
+  // Örnek veride notlar geçmiş dönemlerde (Adım 3.7): transkriptte ders listesi dolu, boş durum iletisi yok.
+  await expect(page.getByText(METIN.transkriptBos)).toHaveCount(0);
 });
 
 test('öğrenci ders kayıt sayfasını açar', async ({ page }) => {
@@ -90,6 +90,6 @@ test('öğrenci ders programı sayfasını açar', async ({ page }) => {
   await page.goto('/ders-programim');
   expect((await yanit).status()).toBe(200);
   await expect(ustBaslik(page)).toHaveText(METIN.dersProgramim);
-  // Seed ders saati ataması yapmadığı için öğrencinin programlı dönemi yok; boş durum gösterilir.
+  // Örnek veride öğrencinin etkin dönemde kaydı yok (kayıtlar geçmiş dönemlerde); boş durum gösterilir.
   await expect(page.getByText(METIN.dersProgramiBos)).toBeVisible();
 });

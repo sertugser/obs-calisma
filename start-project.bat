@@ -29,10 +29,14 @@ call dotnet tool restore
 if errorlevel 1 (
   echo [WARN] dotnet tool restore failed. Skipping database update and continuing startup...
 ) else (
-  call dotnet ef database update -p SIS.Infrastructure -s SIS.API --no-build
+  rem Kurulum: migration, sistem verisi, ilk yonetici, yerel kurum verisi ve ornek veri.
+  rem Yonetici icin SIS_SETUP_ADMIN_EMAIL ve SIS_SETUP_ADMIN_PASSWORD, ornek hesaplar icin SIS_DEMO_PASSWORD gerekir.
+  cd SIS.API
+  call dotnet run --no-build --launch-profile http -- setup --kurum yerel --seed-demo
   if errorlevel 1 (
-    echo [WARN] Database update failed. Continuing startup without blocking the system...
+    echo [WARN] Setup failed. Continuing startup without blocking the system...
   )
+  cd ..
 )
 
 echo.
