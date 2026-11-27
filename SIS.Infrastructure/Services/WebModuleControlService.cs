@@ -275,7 +275,8 @@ public class WebModuleControlService : IWebModuleControlService
     }
 
     // Çekilme kapısı dönemin çekilme kuralıdır: dönem başından son günün kurum saatiyle bitişine kadar açık.
-    // Dönemde çekilme olayı yoksa (üretici son günü başka tarihlerden türetir) kapı eskisi gibi kapalıdır.
+    // Dönemde çekilme olayı yoksa (üretici son günü başka tarihlerden türetir) kapı eskisi gibi kapalıdır; yönetici zorlaması
+    // (WithdrawalOverride) açıkça verilmişse olay olmasa da o geçerlidir (kural ve rozetle aynı).
     // Kurum saat dilimi yalnız burada, değerlendirme başına bir kez okunur. Geçersiz ayar çekilmeyi kapatır
     // (duyuru metni nedeni gizlemez; ayrıntı yalnız yönetici özetinde ve günlükte); öteki modülleri durdurmaz.
     private async Task<WebModuleAccessResult> EvaluateWithdrawalAsync(
@@ -286,7 +287,8 @@ public class WebModuleControlService : IWebModuleControlService
         bool adminSummary,
         CancellationToken ct)
     {
-        if (term is not null && !term.CalendarEvents.Any(evt => evt.EventType == CalendarEventType.CourseWithdrawal))
+        if (term is not null && term.AcademicCalendar?.WithdrawalOverride is null
+            && !term.CalendarEvents.Any(evt => evt.EventType == CalendarEventType.CourseWithdrawal))
             return new WebModuleAccessResult(true, false, selectedOption.Code, selectedOption.Label, "Takvim Eksik",
                 ResolveMessage(announcement, $"{CalendarEventType.CourseWithdrawal} etkinliği takvimde tanımlı değil."));
 
@@ -297,9 +299,9 @@ public class WebModuleControlService : IWebModuleControlService
         }
         catch (InstitutionTimeZoneConfigurationException ex)
         {
-            _logger.LogWarning("Dersten çekilme kapısı kapalı: {Neden}", ex.Message);
+            _logger.LogWarning("Dersten çekilme kapısı kapalı: {Neden}", ex.Detail);
             return new WebModuleAccessResult(true, false, selectedOption.Code, selectedOption.Label, "Ayar Hatası",
-                adminSummary ? ex.Message : WithdrawalUnavailableMessage);
+                adminSummary ? ex.Detail : WithdrawalUnavailableMessage);
         }
 
         var now = _clock.UtcNow;
