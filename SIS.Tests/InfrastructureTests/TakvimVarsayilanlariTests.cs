@@ -26,15 +26,16 @@ public class TakvimVarsayilanlariTests
         await using var db = YeniContext();
         var servis = new CalendarTemplateService(db);
         await servis.EnsureDefaultsAsync();
-        var sablon = await db.CalendarTemplates.FirstAsync();
+        var sablon = await db.CalendarTemplates.SingleAsync(s => s.ChainCode == "MAIN");
         sablon.ItemsJson = "[]";
         sablon.Name = "Yöneticinin şablonu";
-        var tatil = await db.HolidayDefinitions.FirstAsync();
+        var tatil = await db.HolidayDefinitions.OrderBy(h => h.Id).FirstAsync();
         tatil.Name = "Yöneticinin tatili";
         await db.SaveChangesAsync();
 
         await servis.GetTemplatesAsync();
         await servis.GetHolidayDefinitionsAsync();
+        await servis.EnsureDefaultsAsync(); // kurulumun (setup) yolu da aynı
 
         await db.Entry(sablon).ReloadAsync();
         await db.Entry(tatil).ReloadAsync();
