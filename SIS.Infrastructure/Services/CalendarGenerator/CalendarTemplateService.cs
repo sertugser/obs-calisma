@@ -114,6 +114,9 @@ public class CalendarTemplateService : ICalendarTemplateService
         return ToDto(entity);
     }
 
+    // Tablo boşsa varsayılan şablonları ve tatilleri yazar; doluysa hiçbir satıra dokunmaz (kurulumda da,
+    // okurken de): yöneticinin düzenlediği şablon ve tatiller ezilmez. Eski kurulumları varsayılana
+    // çeken uyum güncellemeleri kaldırıldı; canlı kurulum olmadığı için gerekmez.
     public async Task EnsureDefaultsAsync(CancellationToken ct = default)
     {
         var now = DateTime.UtcNow;
@@ -123,159 +126,12 @@ public class CalendarTemplateService : ICalendarTemplateService
             _context.CalendarTemplates.AddRange(DefaultTemplates(now));
             await _context.SaveChangesAsync(ct);
         }
-        else
-        {
-            await EnsureRegulationAlignedDefaultsAsync(now, ct);
-            await EnsureLocalizedDefaultLabelsAsync(now, ct);
-        }
 
         if (!await _context.HolidayDefinitions.AnyAsync(ct))
         {
             _context.HolidayDefinitions.AddRange(DefaultHolidayDefinitions(now));
             await _context.SaveChangesAsync(ct);
         }
-        else
-        {
-            await EnsureLocalizedHolidayLabelsAsync(now, ct);
-        }
-    }
-
-    private async Task EnsureRegulationAlignedDefaultsAsync(DateTime now, CancellationToken ct)
-    {
-        var mainTemplate = await _context.CalendarTemplates.FirstOrDefaultAsync(t => t.ChainCode == "MAIN", ct);
-        if (mainTemplate != null)
-        {
-            var items = DeserializeItems(mainTemplate.ItemsJson);
-            var midterm = items.FirstOrDefault(i => i.Key == "midterm_exam");
-            var final = items.FirstOrDefault(i => i.Key == "final_exam");
-            var addDrop = items.FirstOrDefault(i => i.Key == "add_drop");
-
-            var requiresMainAlignment =
-                midterm == null
-                || midterm.DefaultDurationDays != 5
-                || midterm.OffsetDays != 49
-                || final == null
-                || final.DefaultDurationDays != 12
-                || final.OffsetDays != 105
-                || addDrop == null
-                || addDrop.DefaultDurationDays != 7;
-
-            if (requiresMainAlignment)
-            {
-                mainTemplate.ItemsJson = SerializeItems(DefaultMainItems());
-                mainTemplate.UpdatedAt = now;
-                await _context.SaveChangesAsync(ct);
-            }
-        }
-
-        var summerTemplate = await _context.CalendarTemplates.FirstOrDefaultAsync(t => t.ChainCode == "SUMMER", ct);
-        if (summerTemplate == null)
-            return;
-
-        var summerItems = DeserializeItems(summerTemplate.ItemsJson);
-        var classesEnd = summerItems.FirstOrDefault(i => i.Key == "summer_classes_end");
-        var exam = summerItems.FirstOrDefault(i => i.Key == "summer_exam");
-
-        if (classesEnd != null && exam != null && exam.OffsetDays <= classesEnd.OffsetDays)
-        {
-            summerTemplate.ItemsJson = SerializeItems(DefaultSummerItems());
-            summerTemplate.UpdatedAt = now;
-            await _context.SaveChangesAsync(ct);
-        }
-    }
-
-    private async Task EnsureLocalizedDefaultLabelsAsync(DateTime now, CancellationToken ct)
-    {
-        var templates = await _context.CalendarTemplates
-            .Where(t => t.ChainCode == "MAIN" || t.ChainCode == "ADMISSIONS" || t.ChainCode == "SUMMER")
-            .ToListAsync(ct);
-        if (templates.Count == 0)
-            return;
-
-        var defaultTitles = DefaultMainItems()
-            .Concat(DefaultAdmissionsItems())
-            .Concat(DefaultSummerItems())
-            .ToDictionary(i => i.Key, i => i.Title, StringComparer.OrdinalIgnoreCase);
-
-        var templateNames = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
-        {
-            ["MAIN"] = "Ana Akademik Süreç",
-            ["ADMISSIONS"] = "Başvuru ve Kayıt Süreçleri",
-            ["SUMMER"] = "Yaz Öğretimi"
-        };
-
-        var changed = false;
-        foreach (var template in templates)
-        {
-            if (templateNames.TryGetValue(template.ChainCode, out var templateName) && template.Name != templateName)
-            {
-                template.Name = templateName;
-                template.UpdatedAt = now;
-                changed = true;
-            }
-
-            var items = DeserializeItems(template.ItemsJson);
-            var localizedItems = items
-                .Select(item => defaultTitles.TryGetValue(item.Key, out var title) && item.Title != title ? item with { Title = title } : item)
-                .ToList();
-
-            if (!items.SequenceEqual(localizedItems))
-            {
-                template.ItemsJson = SerializeItems(localizedItems);
-                template.UpdatedAt = now;
-                changed = true;
-            }
-        }
-
-        if (changed)
-            await _context.SaveChangesAsync(ct);
-    }
-
-    private async Task EnsureLocalizedHolidayLabelsAsync(DateTime now, CancellationToken ct)
-    {
-        var holidayNames = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
-        {
-            ["New Year's Day"] = "Yılbaşı Tatili",
-            ["National Sovereignty and Children's Day"] = "Ulusal Egemenlik ve Çocuk Bayramı",
-            ["Labour and Solidarity Day"] = "Emek ve Dayanışma Günü",
-            ["Commemoration of Ataturk, Youth and Sports Day"] = "Atatürk'ü Anma, Gençlik ve Spor Bayramı",
-            ["Democracy and National Unity Day"] = "Demokrasi ve Milli Birlik Günü",
-            ["Victory Day"] = "Zafer Bayramı",
-            ["Republic Day"] = "Cumhuriyet Bayramı",
-            ["Ataturk Memorial Day"] = "Atatürk'ü Anma Günü",
-            ["Eid al-Fitr"] = "Ramazan Bayramı",
-            ["Eid al-Adha"] = "Kurban Bayramı"
-        };
-
-        var holidays = await _context.HolidayDefinitions.ToListAsync(ct);
-        var removed = holidays
-            .Where(holiday =>
-                holiday.Type == HolidayType.ImportantDay
-                && (
-                    holiday.EnglishName.Equals("Ataturk Memorial Day", StringComparison.OrdinalIgnoreCase)
-                    || holiday.Name.Equals("Atatürk'ü Anma Günü", StringComparison.OrdinalIgnoreCase)
-                ))
-            .ToList();
-
-        if (removed.Count > 0)
-        {
-            _context.HolidayDefinitions.RemoveRange(removed);
-            holidays = holidays.Except(removed).ToList();
-        }
-
-        var changed = false;
-        foreach (var holiday in holidays)
-        {
-            if (!holidayNames.TryGetValue(holiday.EnglishName, out var name) || holiday.Name == name)
-                continue;
-
-            holiday.Name = name;
-            holiday.UpdatedAt = now;
-            changed = true;
-        }
-
-        if (removed.Count > 0 || changed)
-            await _context.SaveChangesAsync(ct);
     }
 
     private static CalendarTemplateDto ToDto(CalendarTemplate entity)

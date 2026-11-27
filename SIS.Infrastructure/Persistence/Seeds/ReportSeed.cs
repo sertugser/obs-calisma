@@ -30,27 +30,13 @@ public static class ReportSeed
             ("not-durum-cizelgesi", "Not Durum Çizelgesi", "Bir dönem/şubedeki öğrencilerin komponent puanları (vize/final/ödev…)."),
         };
 
-        var codes = definitions.Select(d => d.Code).ToArray();
-        var existingCodes = await db.ReportDefinitions
-            .Where(r => codes.Contains(r.Code))
-            .Select(r => r.Code)
-            .ToListAsync(ct);
-
-        var toAdd = definitions
-            .Where(d => !existingCodes.Contains(d.Code))
-            .Select(d => new ReportDefinition
-            {
-                Code = d.Code,
-                Name = d.Name,
-                Description = d.Description,
-                CategoryId = category.Id,
-            })
-            .ToList();
-
-        if (toAdd.Count > 0)
+        await Katalog.KatalogEsitleyici.EsitleAsync(db, new Katalog.KatalogTuru<ReportDefinition, (string Code, string Name, string Description)>
         {
-            db.ReportDefinitions.AddRange(toAdd);
-            await db.SaveChangesAsync(ct);
-        }
+            Ad = "rapor",
+            Kayitlar = definitions,
+            KayitAnahtari = d => d.Code,
+            VarlikAnahtari = r => r.Code,
+            Olustur = (d, _) => new ReportDefinition { Code = d.Code, Name = d.Name, Description = d.Description, CategoryId = category.Id },
+        }, DateTime.UtcNow, ct);
     }
 }

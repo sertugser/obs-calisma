@@ -38,12 +38,12 @@ public static partial class SeedData
         await DocumentTypeSeed.SeedAsync(context);
 
         // ── RBAC Phase 1 (Sprint 1.4) ──────────────────────────
-        // Sıra önemli: Permission (katalog, yukarıda) → MenuStructure (perm lookup gerekli) → RolePermission (perm + rol lookup)
-        await MenuStructureSeed.SeedAsync(context);
-        await RolePermissionSeed.SeedAsync(context, roleManager);
+        // Sıra önemli: Permission (katalog, yukarıda) → MenuStructure (perm lookup gerekli) → rol-izin kataloğu (perm + rol lookup)
+        await Katalog.MenuKatalogu.EsitleAsync(context, DateTime.UtcNow);
+        await Katalog.RolIzinKatalogu.EsitleAsync(context, DateTime.UtcNow);
 
         // ── RBAC Phase 2 (Permission Bundles) ───────────────────
-        // MenuStructureSeed sonrası: bundle'lar menu modüllerinden derive ediliyor
+        // Menü kataloğundan sonra: bundle'lar menü modüllerinden türetiliyor
         await PermissionBundleSeed.SeedAsync(context);
 
         // ── Rapor Motoru (Faz 1): handler'ı olan raporları idempotent ekle ──

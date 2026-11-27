@@ -1,11 +1,10 @@
-using Microsoft.AspNetCore.Identity;
-using Microsoft.EntityFrameworkCore;
 using SIS.Domain.Identity;
 
 namespace SIS.Infrastructure.Persistence.Seeds;
 
 /// <summary>
-/// RBAC Phase 1 — 6 default rol için RolePermission mapping'ini seed eder.
+/// RBAC Phase 1 — 6 default rolün varsayılan izin listesi. Yazma işi rol-izin kataloğunda
+/// (Persistence/Katalog/RolIzinKatalogu.cs): eksik atamayı ekler, kaldırılanı geri getirmez.
 ///
 /// Inventory: <c>docs/superpowers/plans/2026-04-25-rbac-default-seed.md</c> (Sprint 0.3 sign-off).
 ///
@@ -14,10 +13,9 @@ namespace SIS.Infrastructure.Persistence.Seeds;
 ///    <c>RequirePermissionAttribute</c> shortcut ile tüm permission'lara erişir.
 ///  - Her rol için sadece <see cref="RoleDefaults"/>'da listelenen permission key'ler verilir.
 ///  - <c>lookup.*</c> permission'ları DB'de yok — hardcoded shortcut ile her authenticated user'a açık.
-///  - Permission key bulunamazsa (typo / drift) warning log + atla.
-///  - Rol bulunamazsa warning log + atla.
+///  - Listede olup veritabanında olmayan rol ya da izin kurulumu durdurur.
 ///
-/// Beklenen toplam: <b>~462 RolePermission</b> satırı.
+/// Toplam: <b>432</b> atama.
 ///
 /// Çalıştırma sırası: <see cref="PermissionSeed"/> + IdentityRole seed ÖNCE çalışmalı.
 /// </summary>
@@ -640,56 +638,4 @@ public static class RolePermissionSeed
             // verilmiştir (Karar #1 — Dean/DepartmentManager CRUD yapamaz). SysAdmin shortcut
             // sayesinde DB satırı gerekmiyor; diğer rollere bilinçli olarak eklenmemiştir.
         };
-
-    /// <summary>
-    /// Idempotent seed. RolePermissions tablosu boşsa <see cref="RoleDefaults"/>'taki tüm rol-permission
-    /// bağlantılarını ekler. Permission key bulunamazsa ya da rol bulunamazsa warning log + atla.
-    /// </summary>
-    public static async Task SeedAsync(
-        AppDbContext context,
-        RoleManager<IdentityRole<int>> roleManager,
-        CancellationToken ct = default)
-    {
-        if (await context.RolePermissions.AnyAsync(ct))
-        {
-            // Daha önce seed edildi. Admin UI replace-all semantiği ile yönetiyor;
-            // boot'ta merge etmek admin'in kasıtlı kaldırdığı satırları geri ekleyerek
-            // kararını ezerdi.
-            return;
-        }
-
-        // Permission key → entity lookup (drift detection için her satırda kontrol edilir).
-        var permissions = await context.Permissions.ToDictionaryAsync(p => p.Key, ct);
-        var rolePermissions = new List<RolePermission>();
-
-        foreach (var (roleName, permissionKeys) in RoleDefaults)
-        {
-            var role = await roleManager.FindByNameAsync(roleName);
-            if (role == null)
-            {
-                Console.WriteLine($"[RolePermissionSeed] WARNING: Role '{roleName}' bulunamadı, atlandı.");
-                continue;
-            }
-
-            foreach (var key in permissionKeys)
-            {
-                if (!permissions.TryGetValue(key, out var permission))
-                {
-                    Console.WriteLine($"[RolePermissionSeed] WARNING: Permission '{key}' bulunamadı (rol: {roleName}), atlandı.");
-                    continue;
-                }
-
-                rolePermissions.Add(new RolePermission
-                {
-                    RoleId = role.Id,
-                    PermissionId = permission.Id,
-                    GrantedAt = DateTime.UtcNow,
-                    GrantedByUserId = null, // seed → grant kaynağı yok
-                });
-            }
-        }
-
-        context.RolePermissions.AddRange(rolePermissions);
-        await context.SaveChangesAsync(ct);
-    }
 }

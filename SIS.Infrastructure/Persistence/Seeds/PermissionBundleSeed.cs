@@ -13,7 +13,7 @@ namespace SIS.Infrastructure.Persistence.Seeds;
 /// Idempotent: aynı isimde bundle varsa atlanır. <see cref="PermissionBundle.IsSystemDefault"/>=true
 /// olduğu için silinmesi engellenir; içerik admin tarafından düzenlenebilir (Karar 4 dışında snapshot semantik).
 ///
-/// Çalışma sırası: <see cref="PermissionSeed"/> → <see cref="MenuStructureSeed"/> → bu seed.
+/// Çalışma sırası: sistem kataloğu (izinler) → menü kataloğu → bu seed.
 /// </summary>
 public static class PermissionBundleSeed
 {

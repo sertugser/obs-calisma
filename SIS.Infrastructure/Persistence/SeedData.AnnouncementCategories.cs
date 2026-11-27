@@ -17,20 +17,15 @@ public static partial class SeedData
             new() { Name = "Ders",     ColorHex = "#10b981", IconName = "BookOpen",      SortOrder = 40, IsSystem = true, CreatedAt = DateTime.UtcNow },
         };
 
-        var existingNames = await context.AnnouncementCategories
-            .AsNoTracking()
-            .Select(c => c.Name)
-            .ToListAsync();
-
-        var existingSet = existingNames.ToHashSet(StringComparer.OrdinalIgnoreCase);
-
-        var missing = defaults
-            .Where(d => !existingSet.Contains(d.Name))
-            .ToList();
-
-        if (missing.Count == 0) return;
-
-        context.AnnouncementCategories.AddRange(missing);
-        await context.SaveChangesAsync();
+        // Katalog kuralı (anahtar: ad). Sistem kategorileri silinemez; ilk eşitlemeden sonra yönetici adını
+        // değiştirirse katalog yeni kategori eklemez (eski ad kayıtta olduğu için atlanır).
+        await Katalog.KatalogEsitleyici.EsitleAsync(context, new Katalog.KatalogTuru<AnnouncementCategory, AnnouncementCategory>
+        {
+            Ad = "duyuru-kategorisi",
+            Kayitlar = defaults,
+            KayitAnahtari = c => c.Name,
+            VarlikAnahtari = c => c.Name,
+            Olustur = (c, _) => c,
+        }, DateTime.UtcNow);
     }
 }
