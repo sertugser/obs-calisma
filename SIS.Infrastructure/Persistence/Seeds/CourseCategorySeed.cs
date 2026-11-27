@@ -19,18 +19,15 @@ public static class CourseCategorySeed
 
     public static async Task SeedAsync(AppDbContext context)
     {
-        var existing = await context.CourseCategories
-            .Select(c => c.Code)
-            .ToListAsync();
-        var existingSet = existing.ToHashSet(StringComparer.OrdinalIgnoreCase);
-
-        var toInsert = All.Where(c => !existingSet.Contains(c.Code)).ToList();
-        if (toInsert.Count == 0) return;
-
-        var now = DateTime.UtcNow;
-        foreach (var c in toInsert) c.CreatedAt = now;
-
-        context.CourseCategories.AddRange(toInsert);
-        await context.SaveChangesAsync();
+        // Katalog kuralı: eksik kategori eklenir, yöneticinin sildiği geri gelmez, var olana dokunulmaz.
+        // Liste ortak (static) nesneler tuttuğu için her ekleme yeni bir kopyadır.
+        await Katalog.KatalogEsitleyici.EsitleAsync(context, new Katalog.KatalogTuru<CourseCategory, CourseCategory>
+        {
+            Ad = "ders-kategorisi",
+            Kayitlar = All,
+            KayitAnahtari = c => c.Code,
+            VarlikAnahtari = c => c.Code,
+            Olustur = (c, simdi) => new CourseCategory { Code = c.Code, Name = c.Name, IsActive = c.IsActive, SortOrder = c.SortOrder, CreatedAt = simdi },
+        }, DateTime.UtcNow);
     }
 }
