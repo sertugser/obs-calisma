@@ -39,6 +39,12 @@ public sealed class BaslangicMigrationTests(PostgresFixture fixture) : IAsyncLif
         }
         finally
         {
+            if (await KisitSayisiAsync() < 3)
+            {
+                await GecmisYazAsync([EskiZincirGecisi.Baslangic]);
+                await using var db = fixture.YeniContext();
+                await db.Database.MigrateAsync();
+            }
             await GecmisYazAsync(onceki);
         }
     }
