@@ -265,10 +265,17 @@ public static partial class SeedData
                         });
                         await context.SaveChangesAsync();
                     }
+
+                    // İzlenen nesne sayısı büyüdükçe her kayıt yavaşlıyordu (1000 öğrenci); kaydedilenler bırakılır.
+                    context.ChangeTracker.Clear();
                 }
             }
         }
     }
+
+    // Aynı parolanın özeti bir kez hesaplanır (parola kuralları o ilk kayıtta denetlenir), sonraki
+    // hesaplar aynı özetle oluşturulur: özet tuzunu içinde taşır, kullanıcıya bağlı değildir.
+    private static readonly Dictionary<string, string> parolaOzetleri = [];
 
     private static async Task<ApplicationUser> EnsureUserAsync(
         UserManager<ApplicationUser> userManager,
@@ -287,7 +294,17 @@ public static partial class SeedData
                 EmailConfirmed = true,
                 PasswordChangedAtUtc = DateTime.UtcNow
             };
-            var result = await userManager.CreateAsync(user, password);
+            IdentityResult result;
+            if (parolaOzetleri.TryGetValue(password, out var ozet))
+            {
+                user.PasswordHash = ozet;
+                result = await userManager.CreateAsync(user);
+            }
+            else
+            {
+                result = await userManager.CreateAsync(user, password);
+                if (result.Succeeded) parolaOzetleri[password] = user.PasswordHash!;
+            }
             if (!result.Succeeded)
                 throw new InvalidOperationException(
                     $"Failed to create user '{email}': {string.Join(", ", result.Errors.Select(e => e.Description))}");
