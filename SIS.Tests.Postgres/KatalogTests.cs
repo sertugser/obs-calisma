@@ -4,7 +4,7 @@ using SIS.Infrastructure.Persistence.Katalog;
 namespace SIS.Tests.Postgres;
 
 // Adım 3.2a: roller ve izinler sistem kataloğundan, gerçek PostgreSQL'de.
-// Veritabanı yalnız migration uygulanmış hâldedir; migration'ın yazdığı izinler de durur.
+// Veritabanı yalnız migration uygulanmış hâldedir.
 [Collection(PostgresKoleksiyonu.Ad)]
 public sealed class KatalogTests(PostgresFixture fixture) : IAsyncLifetime
 {
@@ -19,7 +19,13 @@ public sealed class KatalogTests(PostgresFixture fixture) : IAsyncLifetime
     {
         await using (var db = fixture.YeniContext())
         {
-            // Migration'ın yazdığı izinler var ama kayıtta değil.
+            // Eski bir kurulumdan kalmış, kayıtta olmayan izin (Adım 3.10'dan önce migration yazıyordu).
+            db.Permissions.Add(new SIS.Domain.Identity.Permission
+            {
+                Key = SistemKatalogu.Izinler.Kayitlar[0].Key, Category = SistemKatalogu.Izinler.Kayitlar[0].Category,
+                Description = SistemKatalogu.Izinler.Kayitlar[0].Description,
+            });
+            await db.SaveChangesAsync();
             Assert.True(await db.Permissions.AnyAsync());
             Assert.Equal(0, await db.KatalogKayitlari.CountAsync());
             await SistemKatalogu.EsitleAsync(db, Simdi);
