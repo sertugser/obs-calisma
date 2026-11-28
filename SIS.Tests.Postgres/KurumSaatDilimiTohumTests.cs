@@ -4,7 +4,6 @@ using SIS.Infrastructure.Persistence;
 namespace SIS.Tests.Postgres;
 
 // Kurum saat dilimi ayarı çekirdek tohumda: yoksa varsayılanla (Etc/UTC) eklenir, varsa değeri korunur.
-// Tohum, anahtarın bu koşuda ilk kez yazılıp yazılmadığını döner; örnek veri tohumu İstanbul'u yalnız o zaman atar.
 [Collection(PostgresKoleksiyonu.Ad)]
 public sealed class KurumSaatDilimiTohumTests(PostgresFixture fixture) : IAsyncLifetime
 {
@@ -32,10 +31,10 @@ public sealed class KurumSaatDilimiTohumTests(PostgresFixture fixture) : IAsyncL
         return await kontrol.SystemConfigs.Where(c => c.Key == Anahtar).Select(c => c.Value).SingleOrDefaultAsync();
     }
 
-    private async Task<bool> TohumlaAsync()
+    private async Task TohumlaAsync()
     {
         await using var db = fixture.YeniContext();
-        return await SeedData.SeedSystemConfigAsync(db);
+        await SeedData.SeedSystemConfigAsync(db);
     }
 
     [Fact]
@@ -49,17 +48,7 @@ public sealed class KurumSaatDilimiTohumTests(PostgresFixture fixture) : IAsyncL
     }
 
     [Fact]
-    public async Task BosVeritabaninda_BayrakTrue_IkinciTohumdaFalse()
-    {
-        Assert.True(await TohumlaAsync());
-        Assert.Equal("Etc/UTC", await OkuAsync());
-
-        Assert.False(await TohumlaAsync());
-        Assert.Equal("Etc/UTC", await OkuAsync());
-    }
-
-    [Fact]
-    public async Task AnahtarVarken_BayrakFalse_DegerDegismez()
+    public async Task AnahtarKatalogdanOnceVarsa_DegerDegismez()
     {
         await using (var db = fixture.YeniContext())
         {
@@ -68,30 +57,21 @@ public sealed class KurumSaatDilimiTohumTests(PostgresFixture fixture) : IAsyncL
         }
 
         // Anahtar katalogdan önce var: katalog onu yalnız kayda alır.
-        Assert.False(await TohumlaAsync());
+        await TohumlaAsync();
         Assert.Equal("Europe/Berlin", await OkuAsync());
     }
 
     [Fact]
-    public async Task YoneticiAnahtariSildiyse_GeriGelmez_BayrakFalse()
+    public async Task YoneticiAnahtariSildiyse_GeriGelmez()
     {
-        Assert.True(await TohumlaAsync());
+        await TohumlaAsync();
         await using (var db = fixture.YeniContext())
         {
             db.SystemConfigs.Remove(await db.SystemConfigs.SingleAsync(c => c.Key == Anahtar));
             await db.SaveChangesAsync();
         }
 
-        Assert.False(await TohumlaAsync());
+        await TohumlaAsync();
         Assert.Null(await OkuAsync());
-    }
-
-    [Fact]
-    public async Task SistemTohumu_BayragiDondurur()
-    {
-        await using (var db = fixture.YeniContext())
-            Assert.True(await SeedData.SeedSystemAsync(db, roleManager: null!)); // rol yöneticisi kullanılmıyor
-        await using (var db = fixture.YeniContext())
-            Assert.False(await SeedData.SeedSystemAsync(db, roleManager: null!));
     }
 }
