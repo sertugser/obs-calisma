@@ -225,20 +225,14 @@ public class SchedulingController : ControllerBase
             .AnyAsync(a => swapFacultyIds.Contains(a.FacultyId) && a.TermId == section1.TermId, cancellationToken))
             return BadRequest(new { error = "Bu fakültenin programı onaylanmış (yayında). Takas için önce Program Onayını geri alın." });
 
-        // Load SectionSchedule records for both sections
-        var swapSchedules1 = await _context.SectionSchedules
-            .Include(ss => ss.TimeSlot)
-            .Where(ss => ss.CourseSectionId == section1.Id)
-            .ToListAsync(cancellationToken);
-        var swapSchedules2 = await _context.SectionSchedules
-            .Include(ss => ss.TimeSlot)
-            .Where(ss => ss.CourseSectionId == section2.Id)
-            .ToListAsync(cancellationToken);
+        // İki şubenin program satırları kronolojik sırayla; doğrulama ve yazım bu sıralı listelerden üretilir.
+        var swapSchedules1 = await LoadSwapRowsAsync(section1.Id, cancellationToken);
+        var swapSchedules2 = await LoadSwapRowsAsync(section2.Id, cancellationToken);
 
-        // Bağımsız takas (yalnız slot VEYA yalnız derslik) + farklı blok sayısı ill-defined:
-        // SwapSectionScheduleRecordsAsync slot kaynağını (n adet) derslik kaynağıyla (m adet) zip'ler;
-        // n≠m olunca derslikler yanlış slotlara eşlenir / bloklar düşer. Tam takas (ikisi birden) blok
-        // sayısından bağımsız tutarlıdır. Bu yüzden yalnız tek-boyutlu takasta eşit blok sayısı zorunlu.
+        // Bağımsız takas (yalnız slot VEYA yalnız derslik) + farklı blok sayısı tanımsız:
+        // BuildSwapFinalState satırları gün ve saat sırasıyla eşler (i. satır ↔ ortağın i. satırı); n≠m olunca
+        // eşi olmayan satırlar kalır. Tam takas (ikisi birden) blok sayısından bağımsız tutarlıdır. Bu yüzden
+        // yalnız tek-boyutlu takasta eşit blok sayısı zorunlu.
         if (request.SwapSlots != request.SwapClassrooms
             && swapSchedules1.Count != swapSchedules2.Count)
         {
@@ -565,24 +559,35 @@ public class SchedulingController : ControllerBase
         );
     }
 
+    /// <summary>Şubenin program satırları, takas eşlemesinin sırasıyla: gün (enum sırası), başlangıç saati, satır kimliği.</summary>
+    private Task<List<SectionSchedule>> LoadSwapRowsAsync(int sectionId, CancellationToken ct) => _context.SectionSchedules
+        .Include(ss => ss.TimeSlot)
+        .Where(ss => ss.CourseSectionId == sectionId)
+        .OrderBy(ss => ss.TimeSlot.DayOfWeek).ThenBy(ss => ss.TimeSlot.StartTime).ThenBy(ss => ss.Id)
+        .ToListAsync(ct);
+
     /// <summary>
-    /// Bir şubenin takas sonrası program satırları (zaman dilimi, derslik): zaman dilimi kaynağı <paramref name="swapSlots"/> ise
+    /// Bir şubenin takas sonrası program satırları (zaman dilimi, derslik, blok türü): zaman dilimi kaynağı <paramref name="swapSlots"/> ise
     /// ortağın, değilse kendi satırları; derslik kaynağı <paramref name="swapClassrooms"/> ise ortağın, değilse kendi satırları
-    /// (aynı sıradaki satır). Yalnız zaman dilimi takası dersliklere dokunmaz. Tek boyutlu takasta blok sayıları eşittir (yukarıda
-    /// denetlenir); tam takasta iki kaynak aynı listedir.
+    /// (kronolojik sırada aynı sıradaki satır). Yalnız zaman dilimi takası dersliklere dokunmaz. Blok türü şubenin kendi bloğuna aittir:
+    /// i. satır, kendi i. satırının türünü alır; eşi olmayan fazladan satır (yalnız blok sayısı farklı tam takasta) varsayılan türdedir.
+    /// Tek boyutlu takasta blok sayıları eşittir (yukarıda denetlenir); tam takasta iki kaynak aynı listedir.
     /// </summary>
-    private static List<(TimeSlot TimeSlot, int? ClassroomId)> BuildSwapFinalState(
+    private static List<(TimeSlot TimeSlot, int? ClassroomId, ScheduleBlockType BlockType)> BuildSwapFinalState(
         List<SectionSchedule> own, List<SectionSchedule> partner, bool swapSlots, bool swapClassrooms)
     {
         var slotSource = swapSlots ? partner : own;
         var classroomSource = swapClassrooms ? partner : own;
         return slotSource
-            .Select((ss, i) => (ss.TimeSlot, i < classroomSource.Count ? classroomSource[i].ClassroomId : ss.ClassroomId))
+            .Select((ss, i) => (
+                ss.TimeSlot,
+                i < classroomSource.Count ? classroomSource[i].ClassroomId : ss.ClassroomId,
+                i < own.Count ? own[i].BlockType : ScheduleBlockType.Theory))
             .ToList();
     }
 
     private static ScheduleValidationRequestDto BuildSwapValidationRequest(
-        Domain.Entities.CourseSection section, List<(TimeSlot TimeSlot, int? ClassroomId)> finalState) => new()
+        Domain.Entities.CourseSection section, List<(TimeSlot TimeSlot, int? ClassroomId, ScheduleBlockType BlockType)> finalState) => new()
     {
         SectionId = section.Id,
         InstructorId = section.InstructorId,
@@ -598,16 +603,18 @@ public class SchedulingController : ControllerBase
 
     /// <summary>Şubenin program satırlarını doğrulanan son durumla değiştirir (kaydetme çağıranda).</summary>
     private void ReplaceSectionScheduleRecords(
-        Domain.Entities.CourseSection section, List<SectionSchedule> records, List<(TimeSlot TimeSlot, int? ClassroomId)> finalState)
+        Domain.Entities.CourseSection section, List<SectionSchedule> records,
+        List<(TimeSlot TimeSlot, int? ClassroomId, ScheduleBlockType BlockType)> finalState)
     {
         _context.SectionSchedules.RemoveRange(records);
-        foreach (var (timeSlot, classroomId) in finalState)
+        foreach (var (timeSlot, classroomId, blockType) in finalState)
         {
             _context.SectionSchedules.Add(new SectionSchedule
             {
                 CourseSectionId = section.Id,
                 TimeSlotId = timeSlot.Id,
-                ClassroomId = classroomId
+                ClassroomId = classroomId,
+                BlockType = blockType
             });
         }
     }
