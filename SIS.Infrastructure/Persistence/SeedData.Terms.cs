@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using SIS.Application.Common.Time;
 using SIS.Domain.Entities;
 using SIS.Domain.Enums;
 
@@ -78,8 +79,23 @@ public static partial class SeedData
                 donem.IsActivated = false;
             (await context.AcademicTerms.SingleAsync(t => t.Year == guncel.Yil && t.TermType == guncel.Tur)).IsActivated = true;
 
+            await TazeOrnekVerideSaatDiliminiAtaAsync(context);
             await context.SaveChangesAsync();
         }
+    }
+
+    private const string OrnekKurumSaatDilimi = "Europe/Istanbul";
+
+    // Ürün kararı: varsayılan dünya saati (Etc/UTC), örnek veride örnek kurumun dilimi. Yalnız taze örnek
+    // veride çağrılır ve değer hâlâ katalog varsayılanıysa atanır; kurulumdan önce düz kurulum yapılmış ya
+    // da önceki bir koşu yarıda kalmış olması fark etmez. Yöneticinin seçtiği başka bir dilime dokunulmaz;
+    // örnek veri yeniden kurulurken bu yol çalışmadığından sonradan kaydedilmiş Etc/UTC de ezilmez.
+    // Anahtar silinmişse atama yapılmaz (katalog kuralı: yöneticinin sildiği geri gelmez).
+    private static async Task TazeOrnekVerideSaatDiliminiAtaAsync(AppDbContext context)
+    {
+        var ayar = await context.SystemConfigs.FirstOrDefaultAsync(c => c.Key == InstitutionTimeZoneValidator.ConfigKey);
+        if (ayar?.Value == InstitutionTimeZoneValidator.DefaultId)
+            ayar.Value = OrnekKurumSaatDilimi;
     }
 
     // Derslikler kurum verisidir (Kurum/YerelKurumVeriKaynagi).

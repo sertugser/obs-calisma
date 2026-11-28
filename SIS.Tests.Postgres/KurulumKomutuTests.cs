@@ -94,22 +94,51 @@ public sealed class KurulumKomutuTests(PostgresFixture fixture) : IAsyncLifetime
         Assert.Equal("Etc/UTC", await db.SystemConfigs.Where(c => c.Key == "Institution.TimeZone").Select(c => c.Value).SingleAsync());
     }
 
-    // Bilinen sınır: saat dilimi anahtarı düz kurulumda yazıldığı için sonraki örnek veri kurulumu onu
-    // yöneticinin değeri sayar ve İstanbul'a çekmez.
-    [Fact]
-    public async Task DuzKurulumdanSonraOrnekVeriyleKurulum_SaatDilimiEtcUtcKalir()
+    public enum OrnekVeridenOnce { DuzKurulum, YaridaKalanOrnekVeriKurulumu, YoneticiBerlinKaydetti, YoneticiAnahtariSildi }
+
+    // Örnek veri taze kurulurken kurum saat dilimi hâlâ varsayılansa örnek kurumun dilimi atanır: önce düz
+    // kurulum yapılmış ya da ilk koşu sistem adımından sonra yarıda kalmış olması fark etmez. Yöneticinin
+    // seçtiği başka dilim kalır; yöneticinin sildiği anahtar geri gelmez ve kurulum durmaz.
+    [Theory]
+    [InlineData(OrnekVeridenOnce.DuzKurulum, "Europe/Istanbul")]
+    [InlineData(OrnekVeridenOnce.YaridaKalanOrnekVeriKurulumu, "Europe/Istanbul")]
+    [InlineData(OrnekVeridenOnce.YoneticiBerlinKaydetti, "Europe/Berlin")]
+    [InlineData(OrnekVeridenOnce.YoneticiAnahtariSildi, null)]
+    public async Task OrnekVeriTazeKurulurken_SaatDilimiYalnizVarsayilandaysaIstanbulOlur(OrnekVeridenOnce once, string? beklenen)
     {
         await using var uygulama = new SisUygulamasi(fixture.BaglantiCumlesi);
-        Assert.Equal(0, await KurAsync(uygulama, "yonetici@example.edu", RastgeleParola()));
+        var gun = new DateTime(2026, 11, 26, 0, 0, 0, DateTimeKind.Utc);
+        if (once == OrnekVeridenOnce.YaridaKalanOrnekVeriKurulumu)
+        {
+            // Yönetici parolası yok: sistem verisi yazılır, kurulum ilk yönetici adımında durur.
+            Assert.Equal(1, await KurulumCalistirici.CalistirAsync(
+                uygulama.Services,
+                new KurulumSecenekleri(DemoVerisi: true, "yonetici@example.edu", YoneticiParola: null, DemoTarihi: gun),
+                NullLogger.Instance));
+            await using var ara = fixture.YeniContext();
+            Assert.Equal("Etc/UTC", await ara.SystemConfigs.Where(c => c.Key == "Institution.TimeZone").Select(c => c.Value).SingleAsync());
+            Assert.False(await ara.Students.AnyAsync());
+        }
+        else
+        {
+            Assert.Equal(0, await KurAsync(uygulama, "yonetici@example.edu", RastgeleParola()));
+            await using var yaz = fixture.YeniContext();
+            var ayar = await yaz.SystemConfigs.SingleAsync(c => c.Key == "Institution.TimeZone");
+            if (once == OrnekVeridenOnce.YoneticiBerlinKaydetti)
+                ayar.Value = "Europe/Berlin";
+            else if (once == OrnekVeridenOnce.YoneticiAnahtariSildi)
+                yaz.SystemConfigs.Remove(ayar);
+            await yaz.SaveChangesAsync();
+        }
 
         Assert.Equal(0, await KurulumCalistirici.CalistirAsync(
             uygulama.Services,
-            new KurulumSecenekleri(DemoVerisi: true, "yonetici@example.edu", RastgeleParola()),
+            new KurulumSecenekleri(DemoVerisi: true, "yonetici@example.edu", RastgeleParola(), DemoTarihi: gun),
             NullLogger.Instance));
 
         await using var db = fixture.YeniContext();
         Assert.True(await db.Students.AnyAsync()); // örnek veri yazıldı
-        Assert.Equal("Etc/UTC", await db.SystemConfigs.Where(c => c.Key == "Institution.TimeZone").Select(c => c.Value).SingleAsync());
+        Assert.Equal(beklenen, await db.SystemConfigs.Where(c => c.Key == "Institution.TimeZone").Select(c => c.Value).SingleOrDefaultAsync());
     }
 
     [Fact]
@@ -195,7 +224,7 @@ public sealed class KurulumKomutuTests(PostgresFixture fixture) : IAsyncLifetime
             NullLogger.Instance));
 
         await using var db = fixture.YeniContext();
-        // Saat dilimi anahtarı bu kurulumda ilk kez yazıldı: örnek veri örnek kurumun dilimini atar.
+        // Taze örnek veri, hâlâ varsayılandaki kurum saat dilimine örnek kurumun dilimini atar.
         Assert.Equal("Europe/Istanbul", await db.SystemConfigs.Where(c => c.Key == "Institution.TimeZone").Select(c => c.Value).SingleAsync());
         var etkin = await db.AcademicTerms.Where(t => t.IsActivated).ToListAsync();
         Assert.Equal((2026, TermType.Fall), (Assert.Single(etkin).Year, etkin[0].TermType));
