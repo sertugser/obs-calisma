@@ -82,6 +82,13 @@ public sealed class A03_ParolaYenilemeTests(PostgresFixture fixture, DersProgram
         {
             await db.Users.Where(u => u.Email == Email)
                 .ExecuteUpdateAsync(u => u.SetProperty(x => x.PasswordChangedAtUtc, parolaTarihi));
+            // Listelenecek bir dönem (Adım 3.10'dan beri migration dönem yazmıyor).
+            db.AcademicTerms.Add(new SIS.Domain.Entities.AcademicTerm
+            {
+                Name = "2025-2026 Güz", TermType = SIS.Domain.Enums.TermType.Fall, Year = 2025,
+                TermStart = new DateTime(2025, 9, 15, 0, 0, 0, DateTimeKind.Utc), TermEnd = new DateTime(2026, 1, 10, 0, 0, 0, DateTimeKind.Utc),
+            });
+            await db.SaveChangesAsync();
         }
 
         var istemci = app.CreateClient();
@@ -93,7 +100,7 @@ public sealed class A03_ParolaYenilemeTests(PostgresFixture fixture, DersProgram
         return (kurucu, istemci, govde.RootElement.GetProperty("passwordChangeRequired").GetBoolean());
     }
 
-    // 200 ve dönen dönem kimlikleri veritabanındakilerle aynı (migration verisindeki dönemler).
+    // 200 ve dönen dönem kimlikleri veritabanındakilerle aynı (KurAsync'in yazdığı dönem).
     private async Task DonemlerDonerAsync(HttpResponseMessage yanit)
     {
         Assert.Equal(HttpStatusCode.OK, yanit.StatusCode);

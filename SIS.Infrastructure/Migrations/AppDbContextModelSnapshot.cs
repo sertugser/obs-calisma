@@ -2625,7 +2625,10 @@ namespace SIS.Infrastructure.Migrations
                     b.HasIndex("CourseId", "AcademicTermId", "Name")
                         .IsUnique();
 
-                    b.ToTable("GradeComponents");
+                    b.ToTable("GradeComponents", t =>
+                        {
+                            t.HasCheckConstraint("CK_GradeComponent_Weight_Aralik", "\"Weight\" >= 0 AND \"Weight\" <= 100");
+                        });
                 });
 
             modelBuilder.Entity("SIS.Domain.Entities.GradingCriteria", b =>
@@ -3454,7 +3457,10 @@ namespace SIS.Infrastructure.Migrations
                     b.HasIndex("CourseRegistrationId", "GradeComponentId")
                         .IsUnique();
 
-                    b.ToTable("StudentGrades");
+                    b.ToTable("StudentGrades", t =>
+                        {
+                            t.HasCheckConstraint("CK_StudentGrade_Score_Aralik", "\"Score\" IS NULL OR (\"Score\" >= 0 AND \"Score\" <= 100)");
+                        });
                 });
 
             modelBuilder.Entity("SIS.Domain.Entities.StudentPersonalInfo", b =>
