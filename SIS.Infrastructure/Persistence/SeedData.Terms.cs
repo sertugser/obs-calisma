@@ -18,11 +18,15 @@ public static partial class SeedData
         var donemler = new List<(int Yil, TermType Tur, DateTime Bas, DateTime Bit)>();
         for (var yil = baslangicYili - 4; yil <= baslangicYili; yil++)
         {
-            donemler.Add((yil, TermType.Fall, Utc(yil, 9, 15), Utc(yil + 1, 1, 10)));
-            donemler.Add((yil, TermType.Spring, Utc(yil + 1, 2, 15), Utc(yil + 1, 6, 10)));
+            donemler.Add((yil, TermType.Fall, PazartesiyeCek(Utc(yil, 9, 15)), Utc(yil + 1, 1, 10)));
+            donemler.Add((yil, TermType.Spring, PazartesiyeCek(Utc(yil + 1, 2, 15)), Utc(yil + 1, 6, 10)));
         }
         return donemler.Where(d => d.Bas <= bugun.Date).OrderBy(d => d.Bas).ToList();
     }
+
+    // Dönem pazartesi başlar; takvim üreticisi de başlangıcı pazartesiye çektiği için gün önceki
+    // pazartesiye çekilir, böylece seçilen dönem bugünden sonra başlamaz.
+    private static DateTime PazartesiyeCek(DateTime gun) => gun.AddDays(-(((int)gun.DayOfWeek + 6) % 7));
 
     // Bugünü içeren ya da en son başlamış örnek dönem (dönem aralarında bitmiş dönem).
     public static (int Yil, TermType Tur) GuncelDemoDonemi(DateTime bugun)

@@ -11,8 +11,9 @@ public static partial class SeedData
     // Örnek veri, paket 35: yeni örnek dönemlere takvim olayları sistemin kendi takvim üreticisiyle
     // (varsayılan şablonlar ve tatiller) yazılır; yönetim ekranındaki "takvim oluştur ve uygula" ile aynı
     // yol. Dönem tarihleri ve akademik takvim olaylardan güncellenir. Olaylar olmadan takvime bağlı
-    // modüller "Takvim Eksik" ile kapalı kalıyordu.
-    internal static async Task SeedTermCalendarEventsAsync(
+    // modüller "Takvim Eksik" ile kapalı kalıyordu. Yalnız bu çağrıda yazılan dönemlere uygulanır; bu
+    // paketten önce kurulmuş örnek dönemlere olay eklenmez (yönetim ekranından uygulanabilir).
+    public static async Task SeedTermCalendarEventsAsync(
         AppDbContext context, IEnumerable<(int Yil, TermType Tur, DateTime Bas, DateTime Bit)> yeniDonemler)
     {
         var sablonlar = new CalendarTemplateService(context);
