@@ -244,6 +244,13 @@ public sealed class KurulumKomutuTests(PostgresFixture fixture) : IAsyncLifetime
         var hocaDilim = subeler.SelectMany(s => s.SectionSchedules.Select(ss => (s.InstructorId, ss.TimeSlotId))).ToList();
         Assert.Equal(hocaDilim.Count, hocaDilim.Distinct().Count());
 
+        // Paket 35: her örnek döneme takvim üreticisiyle olaylar yazıldı; etkin dönemde takvime bağlı modüllerin
+        // baktığı olaylar var.
+        Assert.Equal(0, await db.AcademicTerms.CountAsync(t => t.TermType != TermType.Summer && !t.CalendarEvents.Any()));
+        var olaylar = await db.TermCalendarEvents.Where(e => e.TermId == etkin[0].Id).Select(e => e.EventType).Distinct().ToListAsync();
+        Assert.Empty(new[] { CalendarEventType.CourseRegistration, CalendarEventType.AddDrop, CalendarEventType.CourseWithdrawal,
+            CalendarEventType.FinalGradePublication }.Except(olaylar));
+
         // Örnek veri yeniden kurulunca yöneticinin kaydettiği saat dilimi (bilerek kaydedilmiş Etc/UTC dahil) ezilmez.
         foreach (var kayitli in new[] { "Europe/Berlin", "Etc/UTC" })
         {

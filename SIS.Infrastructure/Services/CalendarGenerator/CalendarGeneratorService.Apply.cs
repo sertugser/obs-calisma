@@ -38,7 +38,9 @@ public partial class CalendarGeneratorService
         var snapshot = new List<TermSnapshot>();
         var startYear = ParseAcademicYearStart(draft.AcademicYear);
 
+        // Çağıran zaten bir işlem açmışsa (ör. kurulum adımı) o işleme katılınır; geri alma onun işidir.
         await using var tx = _context.Database.ProviderName == "Microsoft.EntityFrameworkCore.InMemory"
+                || _context.Database.CurrentTransaction is not null
             ? null
             : await _context.Database.BeginTransactionAsync(ct);
 

@@ -69,6 +69,7 @@ public static partial class SeedData
             });
         }
         await context.SaveChangesAsync();
+        await SeedTermCalendarEventsAsync(context, yeniler);
 
         // Taze örnek veride (bu dönemlerin hiçbiri yoktu) tek etkin dönem bugünkü dönemdir; migration'ın
         // eklediği yaz dönemi gibi önceden etkin görünen dönem kapatılır. Örnek veri sonradan yeniden
