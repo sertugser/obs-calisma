@@ -99,6 +99,33 @@ internal sealed class DersProgramiVeriKurucu(PostgresFixture fixture)
         CourseId = DersId, TermId = DonemId, SectionNumber = no, Capacity = 30, Status = CourseSectionStatus.Active
     }, s => s.Id)).Id;
 
+    /// <summary>Varsayılan dersin bölümünde ek bir ders (yalnız teori saati).</summary>
+    public async Task<int> DersEkleAsync(string kod, int teoriSaati)
+    {
+        int bolumId;
+        await using (var db = fixture.YeniContext())
+            bolumId = await db.Courses.Where(c => c.Id == DersId).Select(c => c.DepartmentId!.Value).SingleAsync();
+        return (await KaydetAsync(new Course
+        {
+            Code = kod, Name = "Program Deneme Dersi", Ects = 5, NationalCredit = 3, TheoryHours = teoriSaati, DepartmentId = bolumId
+        })).Id;
+    }
+
+    /// <summary>Verilen dersin şubesi (kimliği şube, zaman dilimi ve derslik kimliklerinden ayrık).</summary>
+    public async Task<int> SubeEkleAsync(int no, int dersId) => (await AyrikKaydetAsync(() => new CourseSection
+    {
+        CourseId = dersId, TermId = DonemId, SectionNumber = no, Capacity = 30, Status = CourseSectionStatus.Active
+    }, s => s.Id)).Id;
+
+    /// <summary>Dönemde ek bir 50 dakikalık zaman dilimi (kimliği ayrık).</summary>
+    public async Task<int> DilimEkleAsync(DayOfWeek gun, TimeOnly bas, int sira) => (await AyrikKaydetAsync(() => new TimeSlot
+    {
+        TermId = DonemId, DayOfWeek = gun, StartTime = bas, EndTime = bas.AddMinutes(50), SlotOrder = sira, DisplayName = $"{gun} {sira}"
+    }, z => z.Id)).Id;
+
+    /// <summary>Ek bir derslik (kimliği ayrık).</summary>
+    public async Task<int> DerslikEkleAsync(string ad) => (await AyrikKaydetAsync(() => Derslik(ad), d => d.Id)).Id;
+
     /// <summary>Şubenin program satırları (derslik, zaman dilimi), yeni bir context'le.</summary>
     public async Task<(int?, int)[]> ProgramAsync(int subeId)
     {
