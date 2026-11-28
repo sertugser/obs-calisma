@@ -49,8 +49,7 @@ public static partial class SeedData
         "SoftConstraint.Weight.S12",
     ];
 
-    // Kurum saat dilimi anahtarı bu çağrıda ilk kez eklendiyse true döner.
-    public static async Task<bool> SeedSystemConfigAsync(AppDbContext context)
+    public static async Task SeedSystemConfigAsync(AppDbContext context)
     {
         var configs = new List<SystemConfig>
         {
@@ -225,10 +224,6 @@ public static partial class SeedData
             .Where(config => !RemovedSystemConfigKeys.Contains(config.Key, StringComparer.OrdinalIgnoreCase))
             .ToList();
 
-        // Saat dilimi anahtarı eşitlemeden önce yoksa ve sonra varsa bu koşuda ilk kez yazılmıştır.
-        // Yöneticinin sildiği anahtarı katalog geri eklemez; o durumda da false döner.
-        var saatDilimiOnceVardi = await SaatDilimiAnahtariVarAsync(context);
-
         // Katalog kuralı: eksik anahtar eklenir, yöneticinin sildiği geri gelmez. Var olan satıra hiç
         // dokunulmaz: değer ve veri tipi yöneticinin; kategori zamanlama yükleyicisinde süzgeç olarak
         // kullanılıyor; açıklamaları migration'lar sonradan değiştirmiş. Kataloğun alanları Adım 3.4b'de.
@@ -240,10 +235,5 @@ public static partial class SeedData
             VarlikAnahtari = c => c.Key,
             Olustur = (c, _) => c,
         }, DateTime.UtcNow);
-
-        return !saatDilimiOnceVardi && await SaatDilimiAnahtariVarAsync(context);
     }
-
-    private static Task<bool> SaatDilimiAnahtariVarAsync(AppDbContext context) =>
-        context.SystemConfigs.AnyAsync(c => c.Key == InstitutionTimeZoneValidator.ConfigKey);
 }
