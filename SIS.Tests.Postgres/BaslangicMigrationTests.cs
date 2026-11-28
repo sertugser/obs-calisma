@@ -15,23 +15,75 @@ public sealed class BaslangicMigrationTests(PostgresFixture fixture) : IAsyncLif
 
     public Task DisposeAsync() => Task.CompletedTask;
 
+    // Uçtan uca: eski zincirin sonundaki veritabanı (EksikKisitlar öncesi şema, 151 satırlık geçmiş) geçişten
+    // sonra olağan MigrateAsync ile EksikKisitlar'ı alır.
     [Fact]
-    public async Task EskiZincirinSonundakiVeritabani_GecmisTekBaslangicSatirinaCevrilir()
+    public async Task EskiZincirinSonundakiVeritabani_GecisVeMigrate_UcKisitEklenir()
     {
         var onceki = await GecmisAsync();
         try
         {
-            await GecmisYazAsync(["20260101000000_EskiBirMigration", EskiZincirGecisi.EskiZincirinSonu]);
+            await EskiSemaya_DonAsync();
 
             await using (var db = fixture.YeniContext())
+            {
                 Assert.True(await EskiZincirGecisi.UygulaAsync(db));
+                Assert.Equal(new[] { EskiZincirGecisi.Baslangic }, await GecmisAsync());
+                await db.Database.MigrateAsync();
+            }
 
-            Assert.Equal(new[] { EskiZincirGecisi.Baslangic }, await GecmisAsync());
+            Assert.Equal(onceki, await GecmisAsync());
+            Assert.Equal(3, await KisitSayisiAsync());
             await using (var db = fixture.YeniContext())
                 Assert.False(await EskiZincirGecisi.UygulaAsync(db)); // ikinci çağrı hiçbir şey yapmaz
         }
         finally
         {
+            await GecmisYazAsync(onceki);
+        }
+    }
+
+    // Eski veritabanında kısıta aykırı veri varsa EksikKisitlar düşer; geçmiş Baslangic'te kalır, veri
+    // düzeltilince yeniden çalıştırma tamamlar.
+    [Fact]
+    public async Task EskiVeritabanindaAykiriPuan_EksikKisitlarDuser_DuzeltinceTamamlanir()
+    {
+        var onceki = await GecmisAsync();
+        try
+        {
+            await EskiSemaya_DonAsync();
+            var veri = await NotVeriKurucu.KurAsync(fixture);
+            var sube = await veri.SubeEkleAsync(hoca: 0, no: 1);
+            var bilesen = await veri.BilesenEkleAsync("Vize", 40m, GradeComponentType.Midterm, 1);
+            var (_, kayit) = await veri.OgrenciEkleAsync(sube, "01");
+            await veri.PuanEkleAsync(kayit, bilesen, 120m);
+
+            await using (var db = fixture.YeniContext())
+            {
+                Assert.True(await EskiZincirGecisi.UygulaAsync(db));
+                var hata = await Assert.ThrowsAnyAsync<Exception>(() => db.Database.MigrateAsync());
+                Assert.Contains("CK_StudentGrade_Score_Aralik", hata.ToString());
+            }
+            Assert.Equal(new[] { EskiZincirGecisi.Baslangic }, await GecmisAsync());
+
+            await using (var db = fixture.YeniContext())
+            {
+                await db.StudentGrades.ExecuteUpdateAsync(g => g.SetProperty(x => x.Score, 100m));
+                Assert.False(await EskiZincirGecisi.UygulaAsync(db));
+                await db.Database.MigrateAsync();
+            }
+            Assert.Equal(onceki, await GecmisAsync());
+            Assert.Equal(3, await KisitSayisiAsync());
+        }
+        finally
+        {
+            if (await KisitSayisiAsync() < 3)
+            {
+                await using var db = fixture.YeniContext();
+                await db.StudentGrades.ExecuteDeleteAsync();
+                await GecmisYazAsync([EskiZincirGecisi.Baslangic]);
+                await db.Database.MigrateAsync();
+            }
             await GecmisYazAsync(onceki);
         }
     }
@@ -42,7 +94,7 @@ public sealed class BaslangicMigrationTests(PostgresFixture fixture) : IAsyncLif
         var onceki = await GecmisAsync();
         try
         {
-            string[] yarim = ["20260101000000_EskiBirMigration", "20260601000000_EskiIkinciMigration"];
+            var yarim = EskiZincir().SkipLast(1).ToArray();
             await GecmisYazAsync(yarim);
 
             await using (var db = fixture.YeniContext())
@@ -129,6 +181,34 @@ public sealed class BaslangicMigrationTests(PostgresFixture fixture) : IAsyncLif
         TermStart = new DateTime(yil + 1, 2, 15, 0, 0, 0, DateTimeKind.Utc),
         TermEnd = new DateTime(yil + 1, 6, 10, 0, 0, 0, DateTimeKind.Utc),
     };
+
+    // EksikKisitlar'ın üç kısıtı kaldırılır ve geçmiş, eski zincirin 151 satırıyla değiştirilir.
+    private async Task EskiSemaya_DonAsync()
+    {
+        await using var baglanti = await fixture.BaglantiAcAsync();
+        await using (var komut = new NpgsqlCommand("""
+            ALTER TABLE "AcademicTerms" DROP CONSTRAINT "EX_AcademicTerms_TekEtkinDonem";
+            ALTER TABLE "StudentGrades" DROP CONSTRAINT "CK_StudentGrade_Score_Aralik";
+            ALTER TABLE "GradeComponents" DROP CONSTRAINT "CK_GradeComponent_Weight_Aralik";
+            """, baglanti))
+            await komut.ExecuteNonQueryAsync();
+        await GecmisYazAsync(EskiZincir());
+    }
+
+    // Eski zincirin biçiminde 151 kimlik; sonuncusu gerçek son migration.
+    private static string[] EskiZincir() =>
+        [.. Enumerable.Range(1, EskiZincirGecisi.EskiZincirUzunlugu - 1).Select(i => $"2026010100{i:0000}_Eski{i}"),
+         EskiZincirGecisi.EskiZincirinSonu];
+
+    private async Task<long> KisitSayisiAsync()
+    {
+        await using var baglanti = await fixture.BaglantiAcAsync();
+        await using var komut = new NpgsqlCommand("""
+            select count(*) from pg_constraint where conname in
+              ('EX_AcademicTerms_TekEtkinDonem', 'CK_StudentGrade_Score_Aralik', 'CK_GradeComponent_Weight_Aralik')
+            """, baglanti);
+        return (long)(await komut.ExecuteScalarAsync())!;
+    }
 
     private async Task<string[]> GecmisAsync()
     {

@@ -17,6 +17,7 @@ namespace SIS.API.Middleware;
 ///   InvalidOperationException → 400  (iş kuralı ihlali)
 ///   UnauthorizedAccessException → 403
 ///   DbUpdateException         → 500  (EF'in İngilizce iç mesajı yerine genel TR mesaj)
+///   PostgresException 23P01/23514 → 409 (işlem sonunda düşen ertelemeli kısıt; TR mesaj)
 ///   diğerleri                 → 500
 ///
 /// Response body: { error, status, type, traceId, details? }
@@ -92,9 +93,16 @@ public sealed class GlobalExceptionMiddleware
         // DbUpdateException'ın ex.Message'ı EF'in jenerik İngilizce metnidir ("An error occurred
         // while saving the entity changes...") — client'a anlamsız. Genel TR mesaja çevir; ham
         // detay zaten AuditLog'a + ILogger'a yazıldı.
-        var clientError = ex is DbUpdateException
-            ? "Veritabanı işlemi sırasında bir hata oluştu. Lütfen tekrar deneyin; sorun sürerse yöneticinize başvurun."
-            : ex.Message;
+        // Ertelemeli kısıt (ör. tek etkin dönem) işlem sonunda düşer; hata DbUpdateException'a sarılmadan
+        // PostgresException olarak gelir. Ham PostgreSQL iletisi de client'a gönderilmez.
+        var clientError = ex switch
+        {
+            Npgsql.PostgresException { SqlState: "23P01" or "23514" } =>
+                "İşlem bir veritabanı kuralına aykırı olduğu için kaydedilmedi (örneğin aynı anda ikinci bir etkin dönem).",
+            DbUpdateException or Npgsql.PostgresException =>
+                "Veritabanı işlemi sırasında bir hata oluştu. Lütfen tekrar deneyin; sorun sürerse yöneticinize başvurun.",
+            _ => ex.Message,
+        };
 
         var body = new Dictionary<string, object?>
         {
@@ -121,6 +129,7 @@ public sealed class GlobalExceptionMiddleware
         UnauthorizedAccessException => StatusCodes.Status403Forbidden,
         ArgumentException => StatusCodes.Status400BadRequest,
         InvalidOperationException => StatusCodes.Status400BadRequest,
+        Npgsql.PostgresException { SqlState: "23P01" or "23514" } => StatusCodes.Status409Conflict,
         _ => StatusCodes.Status500InternalServerError,
     };
 
