@@ -787,6 +787,8 @@ builder.Entity<GradeComponent>(e =>
             e.HasIndex(sg => new { sg.CourseRegistrationId, sg.GradeComponentId }).IsUnique();
 
             e.Property(sg => sg.Score).HasPrecision(5, 2);
+            // Puan 0-100 aralığında (Adım 3.10).
+            e.ToTable(t => t.HasCheckConstraint("CK_StudentGrade_Score_Aralik", "\"Score\" IS NULL OR (\"Score\" >= 0 AND \"Score\" <= 100)"));
             e.Property(sg => sg.MakeupScore).HasPrecision(5, 2);
 
             e.HasOne(sg => sg.CourseRegistration)
@@ -1299,6 +1301,8 @@ builder.Entity<GradingCriteria>(e =>
         builder.Entity<GradeComponent>(e2 =>
         {
             e2.HasIndex(gc => new { gc.CourseId, gc.AcademicTermId, gc.Name }).IsUnique();
+            // Ağırlık 0-100 aralığında; toplamın 100 olması not motorunun işi (Adım 3.10).
+            e2.ToTable(t => t.HasCheckConstraint("CK_GradeComponent_Weight_Aralik", "\"Weight\" >= 0 AND \"Weight\" <= 100"));
         });
 
         builder.Entity<Curriculum>(e2 =>

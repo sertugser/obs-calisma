@@ -15,8 +15,8 @@ kok=$(git rev-parse --show-toplevel)
 cd "$kok"
 desen_dosyasi="ci/yasakli-kelimeler.txt"
 bilinen="ci/yasakli-kelime-bilinen.txt"
-# Taramadan hariç: uygulanmış migration'lar ve iki listenin kendisi.
-haric='^(SIS\.Infrastructure/Migrations/|ci/yasakli-kelime(ler|-bilinen)\.txt$)'
+# Taramadan hariç: iki listenin kendisi. Migration klasörü Adım 3.10'dan beri veri içermediği için taranır.
+haric='^ci/yasakli-kelime(ler|-bilinen)\.txt$'
 
 mod=kontrol
 case "${1:-}" in
