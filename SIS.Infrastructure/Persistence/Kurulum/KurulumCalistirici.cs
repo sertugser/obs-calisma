@@ -64,6 +64,8 @@ public static class KurulumCalistirici
             await using (var kapsam = servisler.CreateAsyncScope())
             {
                 var db = kapsam.ServiceProvider.GetRequiredService<AppDbContext>();
+                if (await EskiZincirGecisi.UygulaAsync(db, ct))
+                    gunluk.LogInformation("Kurulum: eski migration zinciri tek başlangıç migration'ına çevrildi.");
                 await db.Database.MigrateAsync(ct);
             }
             gunluk.LogInformation("Kurulum: migration'lar uygulandı.");

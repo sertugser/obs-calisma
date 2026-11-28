@@ -59,8 +59,8 @@ public sealed class AltyapiTests(PostgresFixture fixture) : IAsyncLifetime
             Assert.Equal(0, await db.AuditLogs.CountAsync());
         }
 
-        // Migration verisi: 6 tablo ve __EFMigrationsHistory.
-        Assert.Equal(7, fixture.MigrationVerisi.Count);
+        // Migration veri yazmaz (Adım 3.10, tek başlangıç migration'ı): yalnız __EFMigrationsHistory dolu.
+        Assert.Equal(new[] { "__EFMigrationsHistory" }, fixture.MigrationVerisi.Keys);
         await using var baglanti = await fixture.BaglantiAcAsync();
         var sonra = await PostgresFixture.SatirSayilariAsync(baglanti);
         Assert.Equal(
