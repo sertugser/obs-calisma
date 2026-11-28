@@ -117,6 +117,33 @@ public sealed class D35b_CokBlokluTakasTests : IDisposable
         Assert.Equal(new[] { (s2z1, s2d1, T), (s2z2, s2d2, T) }, await ProgramAsync(S2));
     }
 
+    // S1'in iki bloğu aynı gün (Pzt 09@D1, Pzt 10@D2), satır kimlikleri saat sırasının tersi; yalnız zaman dilimi takası. Eşleme saat sırasıyla.
+    [Fact]
+    public async Task D35b_AyniGunIkiBlok_EslemeSaatSirasiyla()
+    {
+        Kur(tersSube: S1, s1: [(Z1, D1, T), (Z2, D2, T)], s2: [(Z3, D3, T), (Z4, D4, T)]);
+
+        var sonuc = await TakasAsync(slot: true, derslik: false);
+
+        OnaylandiMi(sonuc);
+        Assert.Equal(new[] { (Z3, D1, T), (Z4, D2, T) }, await ProgramAsync(S1));
+        Assert.Equal(new[] { (Z1, D3, T), (Z2, D4, T) }, await ProgramAsync(S2));
+    }
+
+    // Blok sayıları farklı tam takas: S1 iki blok (Theory, Lab; ders 3 saat, eksik atama serbest), S2 üç blok (Pzt 09@D6, Pzt 10, Sal 10;
+    // hocalar iki gün ders verir). S1'in türleri sırayla kendi bloklarından, fazladan satır varsayılan türde.
+    [Fact]
+    public async Task D35b_FarkliBlokSayisi_TamTakas_TurSirasiKorunur()
+    {
+        Kur(s1Uygulamali: true, s1Saat: (2, 1), s2: [(Z1, D6, T), (Z2, D2, T), (Z4, D4, T)]);
+
+        var sonuc = await TakasAsync(slot: true, derslik: true);
+
+        OnaylandiMi(sonuc);
+        Assert.Equal(new[] { (Z1, D6, T), (Z2, D2, L), (Z4, D4, T) }, await ProgramAsync(S1));
+        Assert.Equal(new[] { (Z1, D1, T), (Z3, D3, T) }, await ProgramAsync(S2));
+    }
+
     // 200 beklenir; değilse çakışmalar hata iletisinde görünür.
     private static void OnaylandiMi(IActionResult sonuc)
     {
@@ -129,7 +156,9 @@ public sealed class D35b_CokBlokluTakasTests : IDisposable
     }
 
     // tersSube: o şubenin satırları ters sırayla (geç satır önce, küçük kimlikle) eklenir. ucuncu: tek satırlı S3 (zaman dilimi, derslik).
-    private void Kur(bool s1Uygulamali = false, int? tersSube = null, (int Dilim, int Derslik)? ucuncu = null)
+    // s1, s2: varsayılan yerine şubenin satırları (kronolojik); S2'nin teori saati satır sayısıdır. s1Saat: S1 dersinin (teori, uygulama) saati.
+    private void Kur(bool s1Uygulamali = false, int? tersSube = null, (int Dilim, int Derslik)? ucuncu = null,
+        (int, int, ScheduleBlockType)[]? s1 = null, (int, int, ScheduleBlockType)[]? s2 = null, (int, int)? s1Saat = null)
     {
         _db.Faculties.Add(new Faculty { Id = 1, Name = "Deneme Fakültesi", Code = "DF" });
         _db.Departments.Add(new Department { Id = 3, FacultyId = 1, Name = "Deneme Bölümü", Code = "DB" });
@@ -139,8 +168,8 @@ public sealed class D35b_CokBlokluTakasTests : IDisposable
             Dilim(Z1, DayOfWeek.Monday, 9, 1), Dilim(Z2, DayOfWeek.Monday, 10, 2),
             Dilim(Z3, DayOfWeek.Tuesday, 9, 1), Dilim(Z4, DayOfWeek.Tuesday, 10, 2), Dilim(Z5, DayOfWeek.Wednesday, 9, 1));
 
-        SubeEkle(S1, D5, s1Uygulamali ? (1, 1) : (2, 0), 61, [(Z1, D1, T), (Z3, D3, s1Uygulamali ? L : T)], tersSube == S1);
-        SubeEkle(S2, D6, (2, 0), 71, [(Z2, D2, T), (Z4, D4, T)], tersSube == S2);
+        SubeEkle(S1, D5, s1Saat ?? (s1Uygulamali ? (1, 1) : (2, 0)), 61, s1 ?? [(Z1, D1, T), (Z3, D3, s1Uygulamali ? L : T)], tersSube == S1);
+        SubeEkle(S2, D6, (s2?.Length ?? 2, 0), 71, s2 ?? [(Z2, D2, T), (Z4, D4, T)], tersSube == S2);
         if (ucuncu is { } u)
             SubeEkle(S3, u.Derslik, (1, 0), 81, [(u.Dilim, u.Derslik, T)], ters: false);
         SubeEkle(S4, D7, (1, 0), 91, [(Z5, D7, T)], ters: false);
